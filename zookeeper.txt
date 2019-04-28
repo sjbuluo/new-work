@@ -1,0 +1,209 @@
+### Zookeeper 
+
+# 分布式协调技术
+主要用来解决分布式环境中多个进程之间的同步控制，有序的访问某种临界资源，防止异常状态
+
+# Zookeeper概述
+是一个分布式的，开放源码的分布式应用程序协调服务，提供了简单原始的功能，分布式应用可以基于它实现更高级的服务，比如分布式同步、配置管理、集群管理、命名管理、队列管理等。被设计为易于编程，使用文件系统目录作为数据模型。为了减轻分布式应用程序所承担的协调任务。Zookeeper是集群的管理者，监视着集群中各个节点的状态，根据节点的反馈进行下一步合理的操作。最终将简单易用的接口和功能稳定、性能高效的系统提供给用户。
+Zookeeper设计了一种数据结构-Znode。在此数据结构的基础上定义了一些原语，也就是一些关于此数据结构的操作。还通过Watcher机制通过网络以消息的形式发送给分布式应用程序。
+Zookeeper提供的服务主要通过：数据结构+原语+Watcher机制
+- Zookeeper数据模型
+Znode
+Zookeeper拥有层次的命名空间，和标准的文件系统非常相似
+采用树形层次结构，Zookeeper树中的每个节点称为Znode，可以拥有子节点，与文件系统不同在于
+1.引用方式
+Znode通过路径引用，如果Unix中的文件路径。路径必须是绝对的，因此必须以斜杠字符/来开头。除此之外，必须是唯一的，也就是每个路径只有一个表示，因此这些路径都是不可变的。Zookeeper中，路径由Unicode字符串组成，并且有一些限制，比如/zookeeper用于保存管理信息。
+2.Znode结构
+Zookeeper命名空间中的Znode，兼具文件和目录两种特点，既像文件一样维护着数据，元信息、ACL、时间戳等数据结构，又像目录一样可以作为路径标识的一部分。每个Znode由3部分组成
+1)stat：此为状态信息，描述该Znode的版本，权限等信息
+2)data：与该Znode关联的数据
+3)children：该Znode下的子节点
+Zookeeper虽然可以关联一些数据，但并没有设计为常规的数据库或者大数据存储，相反的是，用于管理调度数据，比如分布式应用中的配置文件信息、状态信息、汇集位置等等。这些数据都是很小的数据，通常以KB为大小单位。Zookeeper服务器和客户端都被设计为严格检查并限制每个Znode的数据大小至多1M
+3.数据访问
+Zookeeper中的每个节点存储的数据要被原子性操作，也就是说读操作将获取与节点相关的所有数据，写操作也将替换节点的所有数据。另外，每个节点都拥有自己的ACL（控制访问列表），这个列表规定了用户的权限，即特定用户对目标节点可以执行的操作
+4.节点类型
+Zookeeper中的节点有两种，分别为临时节点和永久节点。节点的类型在创建时即被确定，并且不能修改。
+1)临时节点：该节点的生命周期依赖于会话，一旦会话（session）结束，临时节点即别自动删除，当然可以手动删除。虽然每个临时的Znode都会绑定到一个客户端会话，但对所有客户端都是可见的。另外，Zookeeper的临时节点不允许拥有子节点
+2)永久节点：该节点的生命周期不依赖于会话，并且只有在客户端显式执行删除的时候才被删除，可以拥有子节点
+5.顺序节点
+创建Znode时，可以请求在Zookeeper的路径结尾添加一个递增的计数。这个计数对于此节点的父节点来说是唯一的，格式为"%10d"(10位数字，没有数值的位用0填充)。当计数值大于2^32-1时，计数器将溢出
+6.观察
+客户端可以在节点上设置watcher，称为监视器。当节点状态发生改变时（Znode的增、删、改）将会触发watcher所对应的操作。当watch被触发时，Zookeeper将会向客户端发送且仅发送一条通知，因为watch只能被触发一次，这样可以减少网络流量。
+- Zookeeper中的时间
+致使Znode状态改变的每一个操作都将使节点接收到一个Zxid格式的时间戳，并且这个时间戳全局有序。也就是说，每个对Znode的改变都将产生一个唯一的Zxid。如果Zxid1的值小于Zxid2的值，那么Zxid1对应的事件一定发生在Zxid2对应的事件之前。实际上，Znode维护着3个Zxid
+1)cZxid：节点创建时间对应的Zxid格式时间戳
+2)mZxid：节点修改时间对应的Zxid格式时间戳
+3)pZxid：与该节点的子节点（或者该节点）的最近一次创建/删除的Zxid格式时间戳
+实现中Zxid是一个64位数字，高32位时epoch用来标识leader关系是否改变，每次一个leader被选出来，都会有一个新的epoch，低32是一个递增计数
+版本号
+对节点的每一个操作都会致使这个节点的版本号增加，每个节点维护着3个版本号
+1)version：节点数据版本号
+2)cversion：子节点版本号
+3)aversion：节点所拥有的ACL版本号
+- Zookeeper节点属性
+czxid 				节点被创建的zxid
+mzxid 				节点被修改的zxid
+ctime				节点被创建的时间
+mtime				节点被修改的时间
+version				节点数据的版本号
+cversion			子节点被修改的版本号
+aversion			节点的ACL版本号
+ephemeralOwner		如果为临时节点 值为这个节点拥有者的会话ID永久节点则为0
+dataLength			节点数据长度
+numChildren			节点的子节点数量
+pzxid				最新修改的zxid（包括子节点）
+- Zookeeper服务中的操作
+create 				创建Znode（父Znode必须存在）
+delete				删除Znode（Znode没有子节点）‘
+exists				测试Znode是否存在，并获取元数据
+getACL/setACL		为Znode获取/设置ACL
+getChildren			获取Znode所有子节点的列表
+getData/setData		获取/设置Znode相关数据
+sync				是客户端的Zonde视图与Zookeeper同步
+修改Znode操作是有限制的，delete或setData必须明确要更新的Znode的版本号，可以调用exists获取，如果版本号不匹配则更新失败
+更新Zookeeper操作是非阻塞式的，因此客户端如果失去了一个更新（由于另一个进程在同时更新这个Znode），可以在不阻塞其他进程执行的情况下，选择重新尝试或者进行其他操作。
+尽管Zookeeper可以被看做文件系统，但出于便利，摒弃了一些文件系统的操作原语，因为文件非常小并且整体读写，所以不需要打开、关闭或者寻址操作
+- 监听机制
+Watch触发器
+1.watch概述
+Zookeeper可以为所有读操作设置watch，这些读操作包括：exists()、getChildren()、getData()。watch事件是一次性触发器，当watch的对象状态发生改变时，将会触发此对象上watch所对应的事件。watch事件将被异步地发送给客户端，并且Zookeeper为watch机制提供了有序的一致性保证。理论上，客户端接受到watch事件的时间要早于其看到watch对象状态变化的时间。
+2.watch类型
+1)数据watch（data watch）：getData和exists负责设置数据watch
+2)子节点watch（child watch）：getChilren负责设置孩子watch
+通过操作返回数据来设置不同的watch
+1)getData和exists：返回关于节点的数据信息
+2)getChildren：返回孩子列表
+因此
+1)一个成功的setData操作将会触发Znode的数据watch
+2)一个成功的create操作将会触发Znode的数据watch以及孩子watch
+3)一个成功的delete操作将会触发Znode的数据watch以及孩子watch
+3.watch注册与触发
+1)exists操作上的watch在被监视的Znode 创建、删除或者数据更新时被触发
+2)getData操作上的watch在被监视的Znode删除、数据更新时被触发
+3)getChildren操作上的watch在被监视的Znode的子节点创建、删除时触发，或者自身被删除时触发。通过查看watch事件类型来区分是Znode，还是子节点。NodeDelete表示Znode被删除，NodeDeletedChanged表示子节点被删除
+4.需要注意
+1)连接状态事件
+无需注册，只需要处理即可
+2)节点事件
+节点的建立，删除，数据的修改，是one time trigger，需要不停的注册，还可以发生事件丢失的情况
+- 监听工作原理
+Zookeeper的Watcher机制主要包括客户端线程、客户端WatcherManager、Zookeeper三部分，客户端向Zookeeper服务器注册的同时，会将Watcher对象存储在客户端的WatcherManager中，当Zookeeper服务器触发Watcher事件后，会向客户端发送通知，客户端线程从WatchManager中取出对应的Watcher对象来执行回调逻辑
+
+# Zookeeper集群
+基本配置
+tickTime
+心跳基本时间单位，毫秒级，ZK基本上所有的时间都是这个时间的整数倍
+initLimit
+tickTime的倍数，表示在leader选举结束后，follwers与leader同步需要的时间。如果followers比较多或者leader的数据比较多时，同步时间相应可能会增加，那么这个值也需要相应增加。当然，这个值也是follower和observer在开始同步leader的数据时的最大等待时间（setSoTimeout)
+syncLimit
+tickTime的倍数，进入正常请求转发或ping等消息交互时follower和observer与leader交互的超时时间
+dataDir
+内存数据库快照存放地址，如果没有指定事务日志存放地址（dataLogDir），默认也放在此路径下，建议两个地址分开存放到不同的设备上
+clientPort
+配置ZK监听客户端连接的端口
+集群配置
+server.serverid=host:tickpt:electionport
+*
+说明
+server			固定写法 不变
+serverid		每个服务器指定ID （必须处于1-255之间，每台机器都不重复）
+host			主机名
+tickport		心跳通信端口
+electionport	选举端口
+*
+高级配置
+dataLogDir
+将事务日志存储在该路径下，比较重要，这个日志存储的设备效率会影响ZK的写吞吐量
+globalOutstandingLimit
+默认1000 限制所有连接到服务器上但是还没返回响应的请求个数（所有客户端请求而不是连接总数），这个参数是针对单台服务器而言，设定太大可能导致内存溢出
+preAllocSize
+默认64M，以KB为单位，预先分配额定控件用于后续transactionlog吸入，当剩余空间小于4K时，就会再次分配64M。如果snap比较频繁（snapcount较小时），也相应减少这个值
+snapCount
+默认100000，当transaction每达到snapCount/2+rand.nextInt(snapCount/2)时，就做一次SNAPSHOT，默认5w-10w条transaction就会快照一次，使用随机数是为了避免所有服务器同一时间做snapshot
+maxClientCnxns
+默认10 一个客户端可以连接到同一个服务器上的最大连接数，根据IP区分，如果设置为0，表示没有任何限制，设置此值为了防止DoS攻击
+clientPortAddress
+如果服务器有多个网络接口（多个IP地址），如果没有设置这个属性，则clientPort会绑定到所有IP地址上
+minSeesionTimeout
+最小的session超时时间，默认2倍tickTime，优先级高
+maxSessionTimeout
+最大的session超时时间，默认20倍tickTime，优先级高
+集群配置选项
+electionAlg
+选举算法 默认3（fast leader election，基于TCP） 0表示leader选举算法(基于UDP)，1表示非授权快速选举算法(基于UDP)，2表示授权快速选举算法(基于UDP),目前1和2算法都没有应用，不建议使用，0算法未来也可能会被干掉，只保留3(fast leader election)算法，因此最好直接使用默认就好。
+initLimit
+tickTime的倍数，表示在leader选举结束后，follwers与leader同步需要的时间。如果followers比较多或者leader的数据比较多时，同步时间相应可能会增加，那么这个值也需要相应增加。当然，这个值也是follower和observer在开始同步leader的数据时的最大等待时间（setSoTimeout)
+syncLimit
+tickTime的倍数，进入正常请求转发或ping等消息交互时follower和observer与leader交互的超时时间
+leaderServes
+如果不是no 则表示该服务器作为leader时需要接受客户端连接的，为了提高吞吐量，当服务器数3台以上时一般建议设置为no
+cnxaTimeout
+默认5000毫秒，表示leader election时打开连接的超时时间 只用于electionAlg 3时
+ZK的不安全配置项
+skipACL
+默认no 忽略所有ACL检查 相当于开放所有数据权限给所有人
+forceSync
+默认yes 表示transactionlog在commit时立即写入磁盘
+jute.maxbuffer
+默认0xfffff,单位KB，表示节点数据最多1M，如果设置这个值，必须在所有服务器上都设置这个值
+
+*
+***********************
+使用zkServer.sh start/stop/restart/status [配置文件路径(如果没有则使用默认的zoo.cfg)]
+
+需要注意 配置Zookeeper集群时 
+可能需要在<dataDir>对应的路径下创建myid文件
+并在myid文件中写入此路径对应zookeeper服务器的<serverid>
+否则可能启动失败
+***********************
+*
+
+# Zookeeper的Shell操作
+使用zkCli.sh [-server <host>:<port>] # 连接到zookeeper服务器
+常用命令
+1.help 
+查看帮助信息 输出可用的Zookeeper命令
+2.ls /
+列出对应节点的子节点
+3.create <path> <data>
+创建Znode并设置数据 多层级目录必须存在所有父目录
+4.create -s <path> <data>
+创建带编号的Znode的持久节点
+5.create -e <path> <data>
+创建不带编号的临时节点
+6.create -e -s <path> <data>
+创建带编号的临时节点
+7.close
+关闭当前连接
+8.connect <host>:<port>
+连接到指定zookeeper服务器
+9.get <path>
+获取指定目录下的数据
+10.set <path> <data>
+设置指定目录下的数据
+11.delete <path>
+删除指定节点 （删除节点不能含有子节点)
+12.stat <path>
+指定节点的状态信息
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
