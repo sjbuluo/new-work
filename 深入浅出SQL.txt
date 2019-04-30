@@ -208,9 +208,32 @@ SELECT * FROM table_name WHERE column_name_1 IN (value_1, value_2 ...);
 IN
 WHERE子句中用来指定要匹配值的清单关键字，功能与OR相当
 *
+# NOT操作符
+只有一个功能，用于否定其后所跟的任何条件，NOT从不单独使用。
+SELECT * FROM table_name WHERE NOT column_name_1 op value_1;
 
-
-
+## 使用通配符进行过滤
+# LIKE操作符
+通配符
+用来匹配值的一部分特殊字符
+搜索模式
+由字面值、通配符或者两者结合构成的搜索条件
+通配符本身实际上是SQL的WHERE子句中有特殊含义的字符，SQL支持几种通配符，为了在WHERE子句中使用通配符，必须使用LIKE操作符，指示DBMS后面利用通配符匹配而不是简单的相等匹配进行比较
+1.百分号%通配符
+SELECt * FROM table_name WHERE column_name LIKE '%<value_1>%';
+匹配任意数量的任意字符
+2.下划线_通配符
+SELECt * FROM table_name WHERE column_name LIKE '_<value_1>_';
+匹配单个任意字符
+3.方括号[]通配符
+SELECt * FROM table_name WHERE column_name LIKE '[<char1><char2><char3>...]<value_1>[<char4><char5><char6>...]';
+必须匹配方括号中的一个字符 []中是多个字符组成的字符串 ^前缀表示否定，不匹配之后字符串中的字符
+[SQL] -> 匹配SQL其中的一个字符 [^SQL] -> 匹配不是SQL其中一个字符的字符
+# 使用通配符的技巧
+SQL通配符很有用，但是通配符搜索一般比其他搜索耗时长
+1.不要过度使用通配符，如果其他操作符可以达到相同目的，应该使用其他操作符
+2.在确实需要使用通配符时，尽量不要把通配符放在开始处，这是检索最慢的
+3.仔细注意通配符的位置
 
 
 
