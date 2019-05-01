@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by 华硕 on 2019-04-28.
@@ -37,9 +38,40 @@ public class ZKWatcherTest {
 
     @Test
     public void testWatcher() throws KeeperException, InterruptedException {
-        byte[] data = zooKeeper.getData(path, (WatchedEvent watchedEvent) -> {
-            System.out.println("getData时添加的监听器");
-        }, null);
+        Watcher watcher = new Watcher(){
+
+            @Override
+            public void process(WatchedEvent watchedEvent) {
+//                if(watchedEvent.getType() == Event.EventType.NodeDataChanged) {
+//                    System.out.println(watchedEvent.getPath() + " 数据修改");
+//                }
+                switch (watchedEvent.getType()) {
+                    case NodeDataChanged:
+                        String path = watchedEvent.getPath();
+                        System.out.println(path + " 修改了数据");
+                        try {
+                            zooKeeper.getData(path, this, null);
+                        } catch (KeeperException e) {
+                            e.printStackTrace();
+                            System.out.println("监听失败");
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                            System.out.println("监听失败");
+                        }
+                        break;
+                    case NodeChildrenChanged:
+                        break;
+                    case NodeCreated:
+                        break;
+                    case NodeDeleted:
+                        break;
+                    default:
+                        break;
+                }
+            }
+        };
+        byte[] data = zooKeeper.getData(path, watcher, null);
+        TimeUnit.SECONDS.sleep(20);
         System.out.println(new String(data));
     }
 
