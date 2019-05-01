@@ -1,0 +1,74 @@
+HELP.md
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+/build/
+
+### VS Code ###
+.vscode/
+
+
+### angular gitignore ###
+
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+# compiled output
+/new-work-angular/dist
+/new-work-angular/tmp
+/new-work-angular/out-tsc
+
+# dependencies
+/new-work-angular/node_modules
+
+# IDEs and editors
+/new-work-angular/.idea
+/new-work-angular/.project
+/new-work-angular/.classpath
+/new-work-angular/.c9/
+/new-work-angular/*.launch
+/new-work-angular/.settings/
+/new-work-angular/*.sublime-workspace
+
+# IDE - VSCode
+/new-work-angular/.vscode/*
+/new-work-angular/!.vscode/settings.json
+/new-work-angular/!.vscode/tasks.json
+/new-work-angular/!.vscode/launch.json
+/new-work-angular/!.vscode/extensions.json
+
+# misc
+/new-work-angular/.sass-cache
+/new-work-angular/connect.lock
+/new-work-angular/coverage
+/new-work-angular/libpeerconnection.log
+/new-work-angular/npm-debug.log
+/new-work-angular/yarn-error.log
+/new-work-angular/testem.log
+/new-work-angular/typings
+
+# System Files
+/new-work-angular/.DS_Store
+/new-work-angular/Thumbs.db
+
+
