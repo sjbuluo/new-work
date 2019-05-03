@@ -175,6 +175,37 @@ SELECT * FROM user_message;
 
 INSERT INTO user_message VALUES(5, 'a_b_c', 1, 'Something', NOW(), DEFAULT);
 
+SHOW VARIABLES LIKE '%event_sche%';
 
+SET GLOBAL event_scheduler = 1;
+
+CREATE TABLE ten_seconds_timestamp(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	TIME DATETIME
+);
+
+DELIMITER //
+CREATE PROCEDURE ten_seconds_procedure()
+BEGIN
+	INSERT INTO ten_seconds_timestamp (TIME) VALUES (NOW());
+END //
+DELIMITER ;
+
+CREATE EVENT second_event
+ON SCHEDULE EVERY 10 SECOND
+ON COMPLETION PRESERVE DISABLE
+DO CALL ten_seconds_procedure();
+
+SELECT event_name, event_definition, interval_value, interval_field, STATUS FROM information_schema.EVENTS;
+
+ALTER EVENT second_event ON COMPLETION PRESERVE ENABLE;
+
+ALTER EVENT second_event ON COMPLETION PRESERVE DISABLE;
+
+SELECT * FROM ten_seconds_timestamp;
+
+SET GLOBAL event_scheduler = 0;
+
+SHOW VARIABLES LIKE '%event_sche%'
 
 

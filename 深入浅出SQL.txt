@@ -844,8 +844,31 @@ DROP TRIGGER IF EXISTS trigger_name;
 
 # 定时任务
 - 例子MySQL的定时任务
+SHOW VARIABLES LIKE '%event_sche%' # 查看定时策略是否启动
+SET GLOBAL EVENT_SCHEDULE = 1; # 启动定时策略 1：启动 2：停止
 
+是基于存储过程来实现的
+CREATE EVENT event_name
+ON SCHEDULE <定时任务定义>
+ON COMPLETION PRESERVE DISABLE # 在创建之后不立即执行
+ON CALL procedure_name;
 
+SELECT event_name, event_definition, interval_value, interval_field, status FROM information_schema.EVENTS; # 查看所有事件信息
+
+ALTER EVENT event_name ON COMPLETION PRESERVE ENABLE # 启动event_name定时事件
+ALTER EVENT event_name ON COMPLETION PRESERVE DISABLE # 停止evetn_name定时事件
+
+常见周期定时规则
+1.周期执行-关键字EVERY
+单位有second, minute, hour, day, week, quarter(季度), month, year
+比如
+ON SCHEDULE EVERY 1 second
+2.具体在某个时间执行-关键字AT
+例如
+ON SCHEDULE AT current_timestamp()+interval 5 days
+ON SCHEDULE AT 'yyyy-MM-dd HH:mm:ss'
+3.在某个时间段执行-关键字STARTS ENDS
+ON SCHEDULE EVERY 1 SECONDS STARTS current_timestamp()+interval 5 days ENDS current_timestamp()+interval 1 month # 从五天后执行直到一个月后，没1秒执行一次
 
 
 
