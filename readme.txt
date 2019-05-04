@@ -2413,6 +2413,41 @@ Lock 锁
 lock.lock()
 lock.unLock()
 
+
+## String深入了解
+1.String类初始化后是不可变的
+String使用private final char value[]来实现字符串的存储，也就是说String对象创建之后，就不能再修改此对象存储的字符串内容。String对象中编辑字符串的方法replace()等是通过创建一个新的对象来实现的，而不是对原有对象进行修改
+2.引用变量与对象
+Object obj; 创建了一个Object类的引用变量，而不是对象，一般需要使用new来创建对象，赋值给引用变量。
+3.创建字符串的方式
+1)"" 使用双引号创建字符串 此字符串是常量，在编译器已经确定存储到String Pool中
+2)new String("") 使用new关键字创建字符串 会存储在heap堆中，运行期创建的
+new创建的字符串首先查看常量池中是否存在相同的字符串，如果有，就拷贝一份到heap堆中，然后返回堆中的地址。如果常量池中没有则直接在heap堆中创建一份，然后返回地址。（此时不复制到常量池中，否则，堆中的字符串永远是常量池的子集，导致常量池浪费空间）
+使用只包含常量的字符串连接例如 "aa" + "bb"创建的也是常量，编译器就能确定，存储到常量池中。
+使用包含引用变量的字符串连接例如 "aa" + str创建的对象是在运行期才能创建的，存储在heap中
+4.使用String不一定创建对象
+在执行到双引号包含字符串的语句时，如String a = "123",JVM会先到常量池中查找，如果有的话就返回常量池中这个实例的引用，否则创建一个新的实例并置入常量池中，然后返回地址。使用new关键字时才一定创建一个新的实例
+5.使用new String() 一定创建对象
+String a = new String("123")首先走常量池的路线取得一个实例的引用，然后在heap上创建一个String的实例，使用构造函数给value赋值，然后把heap堆中的实例引用地址赋值给引用变量a
+6.String.intern()
+一个初始为空的字符串池，由类String独自维护，调用intern方法时，如果池已经包含了一个等于此String对象的字符串（由equals方法确定）则返回池中的字符串，否则将此String对象添加到池中，并返回String对象的引用
+7.equals和==
+1)== 如果作用域基本数据类型的变量 则直接比较其存储的值是否相等，如果作用于引用类型的变量 则比较指向的对象的地址（即是否是同一个对象)
+2)equals方法是基类Object的方法，因此对于所有的继承于Object的类都会有该方法，Object类中，equals方法是用来比较两个对象的引用地址是否相同，即是否指向同一对象
+3)对于equals方法，不能作用于基本数据类型的变量，如果没有重写equals方法则使用Object基类的，比较引用地址，重写则判断自身的逻辑
+8.String相关的+
+用于字符串连接
+1)连接操作最开始如果都是字符串常量，编译后将尽可能多的直接将字符串常量连接起来，形成新的字符串常量参与后续连接
+2)接下来的字符串是从左向右依次进行，对于不同的字符串，最左边的字符串创建StringBuilder对象，然后依次对右边进行append操作，最后将StringBuilder对象通过toString()方法转换为String对象
+也就是说 "aa" + "bb" + str1 + "cc" + "dd" + str2 = new StringBuilder("aabb").append(str1).append("cc").append("dd").append(str2)
+9.String的不可变性导致字符串变量使用+号的代价
+循环中进行字符串连接的应用，一般都使用StringBuilder的append方法操作
+10.String、StringBuffer、StringBuilder的区别
+1)String不可变 StringBuilder、StringBuffer可变
+2)String不可变 也就可以理解为常量 因此是线程安全的 StringBuffer的方法大多用synchronized修饰 因此是线程安全的 StringBuilder不是线程安全的
+3)效率：StringBuilder > StringBuffer > String
+
+
 ### Spring Boot
 
 SpringBoot希望通过设计大量的自动化配置来简化Spring原有样板化的配置，可以快速构建应用，还通过一系列Starter POMs的定义，在整合各项功能时，无需再pom.xml中维护错综复杂的依赖关系，通过类似模块化的Starter模块定义来引用，使得依赖管理工作更为简单。
