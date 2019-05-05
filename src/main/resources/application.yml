@@ -46,3 +46,12 @@ custom:
       corePoolSize: 10
       maxPoolSize: 200
       queueCapacity: 10
+
+zookeeper:
+  host: 47.105.97.246
+  port: 2181
+  path: /
+  leaderPath: /leader
+  lockPath: /lock
+  tickTime: 2000
+  maxRetries: 5

@@ -235,14 +235,640 @@ SQL通配符很有用，但是通配符搜索一般比其他搜索耗时长
 2.在确实需要使用通配符时，尽量不要把通配符放在开始处，这是检索最慢的
 3.仔细注意通配符的位置
 
+## 创建计算字段
+# 计算字段
+字段：：基本上与劣单意思相同，经常相互使用
+# 拼接字段
+创建由两列组成的标题
+拼接：将值联结到一起（将一个值附加到另一个值）构成单个值
+在SQL的SELECT子句中，可使用一个特殊的操作符来拼接两个列，不同的DBMS，可以是+或者||,MySQL和MariaDB中，必须使用特殊的函数
+AS alias_name 给列、表、视图、字段等设置一个别名
+# 执行算术计算
+SELECT column_name_1 +/-/*// column_name FROM table_name;
 
+*
+一些函数
+TRIM()          去除字符串两边的空格
+RTRIM()         去除字符串右边的空格
+LRTIM()         去除字符串左边的空格
+CONCAT()        拼接字符串
+NOW()           返回当前的系统时间
+*
 
+## 使用数据处理函数
+# 函数
+函数带来的问题
+几乎每个DBMS都有特定的函数，只有少数几个函数被所有主要的DBMS等同等支持。各个函数的名称和语法可能极为不同。
+# 使用函数
+大多数SQL实现支持以下类型的函数
+1.用于处理文本字符串（如删除或填充，转换大小写）的文本函数
+2.用于在数值数据上进行算术操作（如返回绝对值，进行代数运算）的数值函数
+3.用于处理日期和时间值并从这些值中特区特定成分（如返回两个日期之差，检查日期有效性）的日期和时间函数
+4.返回DBMS正使用的特殊信息（如返回用户登录信息）的系统函数
+1.文本处理函数
+UPPER(column_name)                      将字符串转为大写
+LOWER(column_name)                      将字符串转为小写
+LEFT(column_name, length)               返回字符串左边的字符
+RIGHT(column_name, length)              返回字符串右边的字符
+SUBSTRING(column_name, start, length)   返回字符串的子字符串
+SUBSTR(column_name, start, length)      返回字符串的子字符串
+LENGTH(column_name)                     返回字符串长度
+LTRIM(column_name)                      去除字符串左边的空格
+RTRIM(column_name)                      去除字符串右边的空格
+TRIM(column_name)                       去除字符串两边的空格
+SOUNDEX()                               返回字符串的SOUNDEX值
+2.日期和事件处理函数
+日期和时间采用相应的数据类型存储在表中，每个DBMS都有自己的特殊形式。日期和时间值以特殊的格式存储，以便快速和有效的排序或过滤，并且节省物理存储空间。
+由于每个DBMS的形式不同则需要查询相关的函数
+例子MYSQL
+NOW()                                   获取当前日期和时间
+SYSDATE()                               获取当前日期和时间
+CURRENT_TIMESTAMP()                     获取当前时间戳
+DATE_FORMAT(date, format)               日期/时间转换为字符串  格式%Y%m%d%H%i%s
+TIME_FORMAT(time, format)               时间转换为字符串
+STR_TO_DATE(str, format)                字符串转换为日期/时间
+TO_DAYS(str)                            计算距离0000-00-00的天数
+FROM_DAYS(str)                          计算距离0000-00-00指定天数对应的日期
+TIME_TO_SEC(time)                       时间转为秒数
+SEC_TO_TIME(seconds)                    秒数转为时间
+MAKEDATE(year, dayofyear)               拼凑日期
+MAKETIME(hour, minute, second)          拼凑时间
+UNIX_TIMESTAMP()                        unix时间戳、日期转换
+UNIX_TIMESTAMP(date)
+FROM_UNIXTIME(unix_timestamp)
+FROM_UNIXTIME(unix_timestamp, format)
+DATE_ADD(date, INTERVAL amount unit)    为日期增加一个时间间隔 可选day hour minute second microsecond week month quarter year
+ADDDATE()
+ADDTIME()
+DATE_SUB()                              为日期减少一个时间间隔 与DATE_ADD使用方法一致
+DATEDIFF(date1, date2)                  比较两个日期的差距
+TIMEDIFF(time1, time2)                  比较两个时间的差距
+TIMESTAMP(date)                         日期对应的时间戳
+TIMESTAMP(date, time)                   给指定时间戳加上一个指定的数字
+TIMESTAMPADD(unit, interval, dt)
+TIMESTAMPDIFF(unit, dt1, dt2)
+CONVERT_TZ(dt, from_tz, to_tz)          转换时区
+3.数值处理函数
+ABS()                                   绝对值
+COS()                                   余弦
+EXP()                                   指数值
+PI()                                    圆周率
+SIN()                                   正弦
+SQRT()                                  平方根
+TAN()                                   正切
 
+## 汇总数据
+# 聚集函数
+AVG()                                   平均数
+COUNT()                                 行数 COUNT(column_name)会忽略NULL值的行 只返回不为NULL的行的数量
+MAX()                                   最大值
+MIN()                                   最小值
+SUM()                                   总和
+以上函数都会忽略NULL值
+# 聚集不同值
+ALL              默认行为，对所有行执行计算
+DISTINCT         只包含不同的值,不能用于COUNT(*)
+AVG(DISTINCT column_name)               查询不同值的平均值
+# 组合聚集函数
+可以在一次SELECT子句中使用多个聚集函数
 
+##  分组数据
+# 数据分组
+# 创建分组
+使用GROUP BY子句
+重要规定
+1.GROUP BY子句可以包含任意数目的列，因而可以对分组进行嵌套，更细致的进行数据分组
+2.如果GROUP BY子句中嵌套了分组，数据将在最后指定的分组上进行汇总
+3.GROUP BY子句中列出的每一列都必须是检索列或有效的表达式，如果在SELECT中使用表达式，则必须在GROUP BY子句中指定相同的表达式，不能使用别名
+4.大多数SQL实现不允许GROUP BY列带有长度可变的数据类型（如文本或备注型字段）
+5.除聚集计算语句外，SELECT语句中的每一列都必须在GROUP BY子句中给出
+6.如果分组列中包含具有NULL值的行，则NULL将作为一个分组返回，如果列中多行NULL值，它们将分为一组
+7.GROUP BY子句必须出现在WHERE子句之后,ORDER BY子句之前
+# 过滤分组
+规定包括哪些分组，排除哪些分组
+使用HAVING子句
+类似于WHERE子句，支持所有WHERE的操作符，但是WHERE用于过滤行，HAVING用于过滤列，
+# 分组和排序
+ORDER BY                            GROUP BY
+对产生的输出排序                    对行分组，但输出可能不是分组的顺序
+任意列都可以使用                    只可能使用选择列或表达式列，而且必须使用每个选择表列达式
+不一定需要                          如果与聚集函数一起使用列，则必须使用
+# SELECT子句顺序
+1.SELECT            要返回的列或表达式       必须
+2.FROM              从中检索数据的表         仅在从表选择数据时使用
+3.WHERE             行级过滤                 否
+4.GROUP BY          分组说明                 仅在按组计算聚集时使用
+5.HAVING            组级过滤                 否
+6.ORDER BY          输出排序顺序             否
 
+## 使用子查询
+# 使用子查询
+SQL还允许子查询，即嵌套在其他查询中的查询
+# 利用子查询进行过滤
+SELECT * FROM table_name_1 WHERE column_name_1 IN (SELECT column_name_2 FROM table_name_2);
+上面这条SQL相当于执行了
+SELECT column_name_2 FROM table_name_2;
+SELECT * FROM table_name_1 WHERE column_name_1 IN (上面这条SQL的结果);
+对于子查询，SQL没有数量限制，但是在实际使用中由于性能限制，不能嵌套太多的自查询
+作为子查询的SELECT语句只能查询单个列，企图检索多个列将返回错误
+# 作为计算字段使用子查询
+SELECT column_name_1, (SELECT COUNT(*) FROM table_name_2 WHERE table_name_1.column_name_3 = table_name_2.column_name2) AS alias_name_1 FROM table_name_2;
+对子查询检索出的每条结果都执行一次
 
+## 联结表
+# 联结
+SQL最强大功能之一就是能在数据查询的执行中联结（join）表。
+1.关系表
+相同的数据卷出现多次不是一件好事，这是关系数据库设计的基础。
+2.为什么使用联结
+是一种机制，用来在一条SQL中关联表，使用特殊的语法返回一组输出，在运行时关联表中正确的行
+# 创建联结
+ .等值联结
+SELECT * FROM table_name_1, table_name_2 WHERE table_name_1.column_name_1 = table_name_2.column_name_2;
+1.WHERE子句的重要性
+在联结两个表时，实际要做的是将第一个表中的每一行和第二个表中的每一行配对，WHERE子句作为过滤条件，只包含那些匹配给定条件（联结条件）的行，没有WHERE子句则第一个表中的每一行将与第二个表中的每一行配对
+没有WHERE条件时，返回两张表行数相乘的行数，即笛卡尔积，也成为叉联结
+2.内联结
+以上基于两张表的相等测试的联结称为等值联结，也称为内联结。
+SELECT * FROM table_name_1 INNER JOIN table_name_2 ON table_name_1.column_name_1 = table_name_2.column_name2;
+使用INNER JOIN ... ON condition
+*
+性能考虑
+DBMS在运行时关联指定的每个表，以处理联结，可能非常消耗资源，因此需要注意不要联结不必要的表，联结的表越多则性能下降的越厉害
+*
 
+## 创建高级联结
+# 使用表别名
+table_name AS alias_name
+使用表别名的主要原因
+1.缩短SQL语句
+2.允许在一条SQL中多次使用相同的表
+*
+Oracle中没有AS 只需要简单的指定别名即可 table_name alias_name
+*
+# 使用不同类型的连接
+1.自联结
+SELECT * FROM table_name AS alias_name_1, table_name AS alias_name2 WHERE alias_name_1.column_name_1 = alias_name_2.column_name_1 AND condition;
+*
+用自联结而不是子查询
+大部分自联结比子查询快得多
+*
+2.自然联结
+SELECT alias_name_1.*, alias_name_2.column_name_1 FROM table_name_1 AS alias_name_1, table_name_2 AS alias_name_2 WHERE condition;
+自然联结要求只能选择哪些唯一的列，一般通过只对第一张表使用通配符，而其他表则指定明确的子集
+3.外联结
+SELECT * FROM table_name_1 OUTER JOIN table_name_2 ON table_name_1.column_name_1 = table_name_2.column_name2;
+使用OUTER JOIN ... ON condition
+RIGHT OUTER JOIN ... ON condition # 从FROM语句中查出所有右边的表
+LEFT OUTER JOIN ... ON condition # 从FROM语句中查出所有左边的表
+FULL OUTER JOIN ... ON condition # 从FROM语句中查出所有两张表
+#.使用带聚集函数的联结
+SELECT *,COUNT(alias_name_2.column_name2) FROM table_name_1 AS alias_name_1 INNER JOIN table_name_2 AS alias_name_2 ON condition_1 WHERE condition_2;
+# 使用联结和联结条件
+1.主要所使用的联结类型，一般使用内联结。
+2.关于确切的联结语法，需要查看DBMS对应的文档
+3.保证使用正确的联结条件
+4.应该总是提供联结条件
+5.在一个联结中可以包含多个表，甚至可以对每个联结采用不同的联结类型
 
+## 组合查询
+# 组合查询
+使用SQL执行多个查询（多条SELECT语句），并将结果作为一个查询结果集返回，称为并或复合查询
+1.在一个查询中从不同的表返回结构数据
+2.对一个表执行多个查询，按一个查询返回结果
+# 创建组合查询
+1.使用UNION
+SELECT_1
+UNION
+SELECT_2
+将两个SELECT语句的结果合并为一个查询结果集
+2.UNION规则
+1)UNION必须由两条或两条以上的SELECT语句组成，语句之间用关键字UNION分隔
+2)UNION中的每个查询必须包含相同的列、表达式或聚集函数（不过不需要以相同的次序列出）
+3)列数据类型必须兼容：类型不必完全相同，但必须是DBMS可以隐含转换的类型
+3.包含或取消重复的行
+UNION从查询结果集中自动除去了重复的行。
+这是UNION的默认行为，如果需要返回所有匹配的行可以使用UNION ALL
+*
+UNION和WHERE
+UNION几乎总是完成与多个WHERE条件相同的工作，UNION ALL作为UNION的一种形式，完成WHERE子句完成不了的工作，如果需要每个条件的匹配行全部出现（包括重复行），需要使用UNION ALL而不是WHERE
+*
+4.对组合查询结果排序
+在使用UNION组合查询时，只能使用一条ORDER BY子句，必须处于最后一条SELECT语句之后，对于结果集，不存在用一种方式排序一部分，又用另一种方式排序另一部分。
+*
+其他类型的UNION
+某些DBMS还支持另外两种UNION.EXCEPT可用来检索只在第一张表中而在第二张表中不存在的行，INTERSECT用来检索两张表都存在的行
+*
+
+## 插入数据
+# 数据插入
+1).插入完整的行
+2).插入行的一部分
+3).插入某些查询的结果
+1.插入完整的行
+INSERT INTO table_name VALUES (value_1, value_2, ...);
+各列必须以在表中定义的次序填充
+这种语法虽然很简单，但是并不安全，应该尽量避免使用。
+INSERT INTO table_name (column_name_1, column_name_2, ...) VALUES (value_1, value_2, ...);
+总是使用列的列表，给出列能使SQL代码在表结构发生变化的情况下继续发挥作用
+2.插入部分行
+INSERT INTO table_name (column_name_1, column_name_2, ...) VALUES (value_1, value_2, ...);
+省略列
+该列定义为允许NULL值（无值或空值）
+在表定义中给出默认值，这表示如果不给出值就使用默认值
+3.插入检索的数据
+可以利用INSERT将SELECT语句的结果插入表中，也就是所谓的INSERT SELECT，由一条INSERT语句和SELECT语句组成
+INSERT INTO table_name_1 (column_name_1, ...) SELECT column_name_1, ... FROM table_name_2;
+INSERT SELECT语句可以包含WHERE子句，用于过滤数据
+# 从一张表复制到另一张表
+使用SELECT INTO
+与INSERT SELECT不同的是，SELECT INTO将数据复制到一张新表中（有的DBMS可以覆盖已存在的表）
+SELECT column_name_1, ... INTO new_table_name FROM old_table_name # 不删除旧表，创建一张新表
+MairaDB、MySQL、Oracle、SQLite使用语法稍有不同
+CREATE TABLE new_table_name AS SELECT column_name_1, ... FORM old_table_name;
+
+## 更新和删除数据
+# 更新数据
+UPDATE语句 有两种方式
+1.更新表中的特定行
+2.更新表中的所有行
+*
+警告：
+不要省略WHERE子句
+有些DBMS在UPDATE时需要特殊的安全权限
+*
+UPDATE table_name SET column_name_1=value_1, column_name_2=value_2,... WHERE condition;
+*
+在UPDATE语句中使用子查询
+有的DBMS支持在UPDATE语句中使用FROM子句，用一个表的数据更新另一个表的行
+*
+# 删除数据
+DELETE语句 两种方式
+1.删除特定行
+2.删除所有行
+*
+不要忘记WHERE子句
+有些DBMS在DELETE需要特殊的安全权限
+*
+DELETE FROM table_name WHERE condition;
+*
+存在外键时，DBMS使用它们实施引用完整性，可以防止删除某个关系需要用到的行
+*
+DELETE不需要列名或通配符，DELETE删除整行而不是删除列
+更快的删除，如果想要删除所有行，可以使用TRUNCATE TABLE table_name语句
+# 更新和删除的指导原则
+1.除非确实打算更新和删除每一行，否则绝对不要使用不带WHERE子句
+2.保证每个表都有主键
+3.在UPDATE和DELETE之前应该先用SELECT子句测试
+4.使用强制实施引用（外键）完整性的数据库
+5.有的DBMS允许数据库瓜里源施加约束，防止执行不带WHERE子句的UPDATE和DELETE子句
+6.若没有undo，应该非常小心
+
+## 创建和操纵表
+创建表的方法：
+1)多数DBMS都具有交互式创建和管理数据库表的工具
+2)表也可以使用SQL语句操纵
+CREATE TABLE语句
+1.表创建基础
+1)新表的名字
+2)表列的名字和定义，用逗号分隔
+3)有的DBMS还要求指定表的位置
+CREATE TABLE table_name (
+    column_name type definition,
+    ...
+)
+*
+语句格式化
+替换现有的表：在创建表时，指定的表名必须不存在，不能使用创建表语句覆盖
+*
+2.使用NULL值
+NULL是默认行为
+column_name type NOT NULL,
+3.指定默认值
+column_name type NOT NULL DEFAULT default_value,
+# 更新表
+使用ALTER TABLE语句
+虽然所有DBMS都支持ALTER TABLE，但允许更新的内容差别很大，需要考虑
+1)理想情况下，不要在表中包含数据时对其进行更新，在表设计时就应该充分考虑未来可能的需求，避免就对表的结构进行改动
+2)所有DBMS都允许给现有的表增加列，不过对增加的列的数据类型有所限制
+3)需要DBMS不允许删除或更改表中的列
+4)多数DBMS允许重新命名表中的列
+5)许多DBMS限制对已经填有数据的列进行更改，对未填有数据的几乎没有限制
+ALTER TABLE更改表结构 必须给出信息
+1)要更改的表名
+2)列出要做哪些更改
+比如 新增列
+ALTER TABLE table_name ADD COLUMN column_name type definition;
+复杂的表结构更改一般需要手动删除过程
+1)用新的列布局创建一个新表
+2)使用INSERT SELECT语句从旧表复制数据到新表
+3)检验包含所需数据的新表
+4)重命名旧表
+5)用旧表原来的名字重命名新表
+6)根据需要，重新创建触发器、存储过程、索引和外键
+# 删除表
+DROP TABLE table_name
+# 重命名表
+每个DBMS对表重命名的支持有所不同
+
+## 使用视图
+# 视图
+视图是虚拟的表，与包含数据的表不一样，视图只包含使用时动态检索数据的查询
+*
+DBMS支持：有些DBMS不支持视图
+*
+1.为什么使用视图
+1)重用SQL语句
+2)简化复杂的SQL操作
+3)使用表的一部分而不是整个表
+4)保护数据，可以授予用户访问表特定部分的权限，而不是整个表
+5)更改数据格式和表示，视图可返回与底层表的表示和格式不同的数据
+创建视图后，可以用于表基本相同的方式使用，SELECT，与其他视图和表联结，甚至添加和更新数据
+最重要的是，直到视图仅仅查看存储在其他地方数据的一种设施，本身不包含数据，因而返回的数据从其他表中检索出来的，在添加和更改数据时，视图将返回改变过的数据
+性能问题
+2.视图的规则和限制
+1)唯一命名
+2)可以创建的视图数量没有限制
+3)创建视图，必须有足够的访问权限
+4)视图可以嵌套，即可以利用其它视图
+5)许多DBMS禁止在视图查询中使用ORDER BY子句
+6)有些DBMS要求对返回的所有列进行命名，如果是计算字段则需要使用别名
+7)视图不能索引，也不能有关联的触发器或默认值
+8)游戏DBMS把视图作为只读
+9)有些DBMS允许创建这种视图，不能进行导致行不再属于视图的插入或更新
+# 创建视图
+CREATE VIEW view_name AS SELECT语句
+1.利用视图简化复杂的联结
+在检索视图时会将WHERE子语句添加到VIEW的已有的WHERE子语句上
+2.用视图重新格式化检索出的数据
+3.用视图过滤不想要的数据
+4.用视图与计算字段
+
+## 使用存储过程
+# 存储过程
+为以后使用而保存的一条或多条SQL语句，可将其视为批处理文件。
+# 为什么使用存储过程
+简单、安全、高性能
+# 执行存储过程
+EXECUTE procedure_name(value_1, ...);
+存储过程的基本形式，可能包括以下执行选择
+1)参数可选，具有不提供参数时的默认值
+2)不按次序给出参数，以参数=值的方式给出参数值
+3)输出参数，允许存储过程在正执行的应用程序中更新所用的参数
+4)用SELECT语句检索数据
+5)返回代码，允许存储过程返回一个值到正在执行的应用程序中
+# 创建存储过程
+CREATE PROCEDURE procedure_name (param_name IN/OUT type, ...)
+IS
+param_name type:
+BEGIN
+    # 过程
+END
+---- 例子:MYSQL存储过程
+DELIMITER //
+CREATE PROCEDURE procedure_name (IN/OUT/INOUT param_name type)
+BEGIN
+    # 过程
+END //
+DELIMITER ;
+CALL procedure_name(value, @param_name);
+SELECT @param_name;
+
+完整格式
+CREATE
+    [DEFINER = { user | CURRENT_USER }]
+　PROCEDURE sp_name ([proc_parameter[,...]])
+    [characteristic ...] routine_body
+
+proc_parameter:
+    [ IN | OUT | INOUT ] param_name type
+
+characteristic:
+    COMMENT 'string'
+  | LANGUAGE SQL
+  | [NOT] DETERMINISTIC
+  | { CONTAINS SQL | NO SQL | READS SQL DATA | MODIFIES SQL DATA }
+  | SQL SECURITY { DEFINER | INVOKER }
+
+routine_body:
+　　Valid SQL routine statement
+
+[begin_label:] BEGIN
+　　[statement_list]
+　　　　……
+END [end_label]
+
+- 关键语法
+1.声明语句结束符
+DELIMITER <自定义符号 比如//或$$>
+2.声明存储过程
+CREATE PROCEDURE procedure_name(IN/OUT/INPUT param_name type)
+3.存储过程开始和结束符号
+BEGIN ... END
+4.变量赋值
+SET @param_name=value
+5.变量定义
+DECLARE param_name type definition;
+- 存储过程体
+包含在过程条用是必须执行的语句，例如dml、ddl语句，if-then-else和while-do语句
+过程体格式：以begin开始，以end结束，可嵌套
+label1: BEGIN
+    label2: BEGIN
+        label3: BEGIN
+            statements;
+        END label3 ;
+    END label2 ;
+END label1 ;
+label可选 增加可读性 某些语句（leave和iterate语句）需要用到label标签
+- 参数
+IN 输入参数 表示调用者向过程传入值（可以是字面量或变量）
+OUT 输出参数 表示过程调用者传出值（可以返回多个）
+INOUT 输入输出参数 即表示调用者向过程传入值，又表示传出值
+- 变量
+1.变量定义
+DECLARE variable_name type definition
+2.变量赋值
+SET variable_name=expression # 在任何需要赋值的地方都需要使用SET
+3.用户变量 一般以@开头
+@variable_name
+- 注释
+--
+/**/
+#
+- 删除
+DROP PROCEDURE [IF EXISTS] procedure_name;
+- 存储过程的控制语句
+1.变量作用域
+直到END
+2.IF THEN - ELSEIF THEN - ELSE - END IF语句
+IF condition
+THEN
+    statements;
+ELSEIF condition
+THEN
+    statements;
+ELSE
+    statements;
+END IF
+3.CASE WHEN THEN ELSE END CASE语句
+CASE variable_name
+    WHEN value/condition THEN
+        statements;
+    WHEN value/condition THEN
+        statements;
+    ...
+    ELSE
+        statements;
+END CASE;
+4.WHILE DO END WHILE语句
+WHILE condition DO
+    statements;
+END WHILE
+5.REPEAT UNTIL END REPEAT
+REPEAT
+    statements;
+    UNTIL condition
+END REPEAT;
+6.LOOP ... END LOOP
+<loop_label>:LOOP
+    LEAVE <loop_label>
+END LOOP;
+
+## 管理实务处理
+# 事务处理
+确保成批SQL操作要么完全执行，要么完全不执行，维护数据库完整性
+术语
+1)事务 transaction 指一组SQL语句
+2)回退 rollback 指撤销指定SQL语句的过程
+3)提交 commit 指将未存储的SQL语句结果写入数据库表
+4)保留点 savepoint 事务处理中设置临时占位符，可以回退到此处
+# 控制事务处理
+BEGIN TRANSACTION # SQL Server
+START TRANSACTION # MySQL MariaDB
+SET TRANSACTION # Oracle
+
+ROLLBACK # 回滚
+
+COMMIT TRANSACTION # SQL Server
+COMMIT # Oracle
+COMMIT [WORK] # MySQL
+
+SAVEPOINT savepoint_name # MariaDB MySQL Oracle
+SAVE TRANSACTION savepoint_name # SQL Server
+
+ROLLBACK TO savepoint_name # MariaDB MySQL Oracle
+ROLLBACK TRANSACTION savepoint_name # SQL Server
+
+## 使用游标
+# 游标
+是一个存储在DBMS上的数据库查询，是被检索出的结果集，用户可以根据需要滚动或浏览其中的数据
+1)能够标记游标为只读，使数据能读取，但不能更新和删除。
+2)能控制可以执行的定向操作（向前、向后、第一、最后、绝对位置、相对位置等）。
+3)能标记某些列为可编辑的，某些列为不可编辑的。
+4)规定范围，使游标对创建它的特定请求（如存储过程）或对所有请求可访问。
+5)指示DBMS对检索出的数据（而不是指出表中活动数据）进行复制，使数据在游标打开和访问期间不变化。
+# 使用游标
+在使用游标前，必须声明（定义）它。这个过程实际上没有检索数据，它只是定义要使用的SELECT语句和游标选项。
+一旦声明，就必须打开游标以供使用。这个过程用前面定义的SELECT语句把数据实际检索出来。
+对于填有数据的游标，根据需要取出（检索）各行。
+在结束游标使用时，必须关闭游标，可能的话，释放游标（有赖于具体的DBMS）。
+1.创建游标
+DECLARE cursor_name CURSOR # DB2 MariaDB MySQL SQL Server
+FOR
+    SELECT语句
+DECLARE CURSOR cursor_name # Oracle
+IS
+    SELECT语句
+2.使用游标
+OPEN CURSOR cursor_name
+FETCH cursor_name INTO variable_name
+3.关闭游标
+CLOSE cursor_name
+无需再次声明，只需要再次OPEN即可使用
+
+## 高级SQL特性
+# 约束
+管理如何插入或处理数据库数据的规则
+1.主键
+保证一列或一组列的值是唯一的，而且永不改动
+需满足条件
+1)任意两行的主键值都不相同
+2)每行都具有一个主键值
+3)包含主键值的列从不修改或更新
+4)主键值不重用
+创建表时 column_name type PRIMARY KEY
+修改表时 ALTER TABLE table_name ADD CONSTRAINT PRIMARY KEY (column_name);
+2.外键
+外键是表中的一项，其值必须列在另一表的主键中
+创建表时 column_name type REFERENCES table_name(primary_key_column_name)
+修改表时 ALTER TABLE table_name ADD CONSTRAINT FOREIGN KEY (column_name) REFERENCES table_name_2 (primary_key_column_name);
+3.唯一约束
+类似于主键，区别
+1)表可包含多个唯一约束，但每个表只允许一个主键。
+2)唯一约束列可包含NULL值。
+3)唯一约束列可修改或更新。
+4)唯一约束列的值可重复使用。
+5)与主键不一样，唯一约束不能用来定义外键
+4.检查约束
+用来保证一列或一组列中的数据满足一组指定的条件
+创建时 column_name type CHECK (condition)
+修改时 ALTER TABLE table_name ADD CONSTRAINT CHECK (condition)
+# 索引
+用来排序数据以加快搜索和排序操作的速度
+1)索引改善检索操作的性能，但降低了数据插入、修改和删除的性能。在执行这些操作时，DBMS必须动态地更新索引。
+2)索引数据可能要占用大量的存储空间。
+3)并非所有数据都适合做索引。取值不多的数据（如州）不如具有更多可能值的数据（如姓或名），能通过索引得到那么多的好处。
+4)索引用于数据过滤和数据排序。如果你经常以某种特定的顺序排序数据，则该数据可能适合做索引。
+5)可以在索引中定义多个列（例如，州加上城市）。这样的索引仅在以州加城市的顺序排序时有用。如果想按城市排序，则这种索引没有用
+处。
+CREATE INDEX index_name ON table_name (column_name);
+# 触发器
+特殊的存储过程，在特定的数据库活动发生时自动执行，可以与特定表上的INSET、UPDATE和DELETE操作相关联
+与存储过程不同，触发器只与单个表关联。
+触发器内的代码具有以下数据的访问权
+1)INSERT操作中的所有新数据；
+2)UPDATE操作中的所有新数据和旧数据；
+3)DELETE操作中删除的数据。
+- 例子MySQL触发器
+CREATE TRIGGER trigger_name trigger_time trigger_event
+ON table_name FOR EACH ROW
+    [trigger_order]
+trigger_body
+trigger_time: { BEFORE | AFTER }
+trigger_event: { INSERT | UPDATE | DELETE }
+trigger_order: { FOLLOWS | PRECEDES } other_trigger_name
+trigger_body: BEGIN statements; END
+使用OLD.column_nam和NEW.column_name来对应旧数据和新数据 如果需要修改新数据使用SET NEW.column_name = expr来修改 而OLD数据是只读的
+SHOW TRIGGERS # 查看触发器
+DROP TRIGGER IF EXISTS trigger_name;
+
+# 定时任务
+- 例子MySQL的定时任务
+SHOW VARIABLES LIKE '%event_sche%' # 查看定时策略是否启动
+SET GLOBAL EVENT_SCHEDULE = 1; # 启动定时策略 1：启动 2：停止
+
+是基于存储过程来实现的
+CREATE EVENT event_name
+ON SCHEDULE <定时任务定义>
+ON COMPLETION PRESERVE DISABLE # 在创建之后不立即执行
+ON CALL procedure_name;
+
+SELECT event_name, event_definition, interval_value, interval_field, status FROM information_schema.EVENTS; # 查看所有事件信息
+
+ALTER EVENT event_name ON COMPLETION PRESERVE ENABLE # 启动event_name定时事件
+ALTER EVENT event_name ON COMPLETION PRESERVE DISABLE # 停止evetn_name定时事件
+
+常见周期定时规则
+1.周期执行-关键字EVERY
+单位有second, minute, hour, day, week, quarter(季度), month, year
+比如
+ON SCHEDULE EVERY 1 second
+2.具体在某个时间执行-关键字AT
+例如
+ON SCHEDULE AT current_timestamp()+interval 5 days
+ON SCHEDULE AT 'yyyy-MM-dd HH:mm:ss'
+3.在某个时间段执行-关键字STARTS ENDS
+ON SCHEDULE EVERY 1 SECONDS STARTS current_timestamp()+interval 5 days ENDS current_timestamp()+interval 1 month # 从五天后执行直到一个月后，没1秒执行一次
 
 
 
