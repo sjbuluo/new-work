@@ -13,4 +13,5 @@ public class CustomHandlerInterceptorConfiguration extends WebMvcConfigurationSu
         registry.addInterceptor(new CustomHandlerInterceptor()).addPathPatterns("/**");
         super.addInterceptors(registry);
     }
+
 }
