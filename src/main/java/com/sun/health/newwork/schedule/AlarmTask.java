@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.concurrent.TimeUnit;
 
-@Configuration
+//@Configuration
 //@EnableScheduling
 //@Async
 public class AlarmTask {
