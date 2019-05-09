@@ -33,6 +33,11 @@ spring:
     consumer:
       group-id: b
       auto-offset-reset: earliest
+  activemq:
+    broker-url: tcp://47.105.97.246:61616
+#  jms:
+#    pub-sub-domain: true
+
   data:
     mongodb:
       host: 47.105.97.246
@@ -46,6 +51,9 @@ custom:
       corePoolSize: 10
       maxPoolSize: 200
       queueCapacity: 10
+  activemq:
+    queueName: test_queue
+    topicName: test_topic
 
 zookeeper:
   host: 47.105.97.246

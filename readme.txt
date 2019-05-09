@@ -7095,6 +7095,16 @@ b.手动确认
 3.订阅模式
 
 
+*****
+注意事项
+WIN10系统下RabbitMQ安装路径和当前用户名都不能含有中文字符
+如果当前用户名含有中文字符 可以按照以下方式解决
+1.rabbitmq-service.bat remove # 先将rabbitmq从系统服务中删除
+SET RABBITMQ_BASE=<paht> # 设置一个不含有中文的路径作用rabbitmq的主目录
+rabbitmq-service.bat install # 重新安装到系统服务中
+rabbitmq-service.bat start # 启动RabbitMQ服务
+2.rabbitmq-plugins.bat enable rabbitmq_management # 启动控制后台系统
+*****
 
 
 ### Kafka
@@ -8022,6 +8032,180 @@ x{m,n}	重复字符x，至少m次，不多于n次，如：/0{5,10}/匹配5~10个
 简单的文件内容替换命令
 sed -i "s/需要替换的内容/替换的内容/g" 文件名 # -i表示修改本地文件 不然只是修改输出到标准输出中的内容
 sed -i[r] "s/需要替换的内容/替换的内容/g" $(grep "需要替换的内容" 替换文件所有目录) # -r表示备份 使用grep查出对应的文件后替换
+
+
+### ActiveMQ
+## ActiveMQ入门介绍
+# JMS
+1.简介
+Java Message Service，即Java消息服务，主要用于在生产者和消费者之间进行消息传递，生产者负责产生消息，消费者负责接受消息。分为点对点，即一个生产者和一个消费者一一对应，另一种则是发布/订阅模式，即一个生产者发送的消息可以由多个消费者接受
+2.JMS编程模型
+1)ConnectionFactory
+创建Connection对象的工厂，针对两个不同的JMS消息模型，有QueueConnectionFactory和TopicConnectionFactory两种，可以通过JNDI来查找ConnectionFactory对象
+2)Destination
+消息生产者的消息发送目标或者消息消费者的消息来源。是Queue或Topic中的一种。可以通过JNDI来查找Destination
+3)Connection
+Connection表示在客户端和JMS系统之间建立的链接（TCP/IP socket的包装），Connection可以产生一个或多个Session。跟ConnectionFactory类似，也有两种类型，QueueConnection和TopicConnection
+4)Session
+操作消息的接口，可以通过Session创建生产者、消费者、消息等。Session提供了事务的功能，当需要使用session发送/接受多个消息时，可以将发送/接受动作放到一个事务中。Session也分为QueueSession和TopicSession
+5)Sender 消息生产者
+有Session创建，用于将消息发送到Destination中，分为QueueSender和TopicPublisher，可以调用send()或publish()发送消息
+6)Receiver 消息消费者
+也有Session创建，用于接受发送到Destination的消息，分为QueueReceiver和TopicSubscriber，通过createReceiver(Queue)或createSubscriber(Topic)来创建，可以通过createDurableSubscriber方法创建持久化的订阅者
+7)MessageListener
+消息监听器，注册之后，一旦消息到达，将自动调用监听器的onMessage方法
+# ActiveMQ
+1.简介
+Apache旗下的一个开源软件，遵循JMS规范，是消息驱动中间件。
+2.特性
+1)支持多种语言客户端
+2)完全支持JMS1.1和J2EE1.4规范，包括同步和异步消息传递，一次和只有一次的消息传递。
+3)对Spring的支持
+4)通过常见J2EE服务器
+5)提供各种连接选择，HTTP、HTTPS、IP多点传送、SSL、STOMP、TCP、UDP、XMPP等
+6)提供多种持久化方案可供选择，也可以完全按自己需求定制验证和授权
+7)无需专门的管理工具，自身提供了各种易用且强大的管理特性
+8)代理器集群，利于扩展
+9)支持Ajax，支持与Axis的整合
+
+## 使用
+# 简单使用
+引入activemq-all的依赖
+1.使用Queue
+生产者
+ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://host:port");
+Connection connection = connectionFactory.createConnection();
+connection.start();
+Session session = connection.createSession(false, Session.Type);
+Queue queue = session.createQueue("test_queue");
+MessageProducer producer = session.createProducer(queue);
+TextMessage message = session.createTextMessage("message");
+producer.send(message);
+// close
+消费者
+ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://host:port");
+Connection connection = connectionFactory.createConnection();
+connection.start();
+Session session = connection.createSession(false, Session.Type);
+Queue queue = session.createQueue("test_queue");
+MessageConsumer consumer = session.createConsumer(queue);
+consumer.setMessageListener(new MessageListener() {
+    public void onMessage(Message message) {
+        if(message instanceof TextMessage) {
+            TextMessage textMessage = (TextMessage) message;
+            System.out.println(textMessage.getText());
+        }
+    }
+});
+2.使用Topic
+生产者
+ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://host:port");
+Connection connection = connectionFactory.createConnection();
+connection.start();
+Session session = connection.createSession(false, Session.Type);
+Topic topic = session.createTopic("test_topic");
+MessageProducer producer = session.createProducer(topic);
+TextMessage message = session.createTextMessage("message");
+producer.send(message);
+// close
+消费者
+ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://host:port");
+Connection connection = connectionFactory.createConnection();
+connection.start();
+Session session = connection.createSession(false, Session.Type);
+Topic topic = session.createTopic("test_topic");
+MessageConsumer consumer = session.createConsumer(topic);
+consumer.setMessageListener(new MessageListener() {
+    public void onMessage(Message message) {
+        if(message instanceof TextMessage) {
+            TextMessage textMessage = (TextMessage) message;
+            System.out.println(textMessage.getText());
+        }
+    }
+});
+// close
+
+2.整和Spring Boot
+引入spring-boot-starter-activemq依赖
+修改配置文件 (一般在spring.activemq和spring.jms两个配置类下)
+spring:
+    activemq:
+        broker-url: tcp://host:port
+    #jms:
+    #    pub-sub-domain: false # SpringBoot的默认配置接受queue和topic中的一种 false为queue true为topic 如果需要接受两种消息来源则需要配置JmsListenerContainerFactory这个类 topic和queue各配置一个在接受时使用
+配置类
+@Configuration
+@EnableJms
+public class CustomActiveMQConfiguration {
+    @Bean("名称") // 可配置多个
+    public Queue createXxxQueue() {
+        return new ActiveMQQueue("名称");
+    }
+    @Bean("名称") // 可配置多个
+    pubic Topic createXxxTopic() {
+        return new ActiveMQTopic("名称");
+    }
+    @Bean("queueListenerContainerFactory")
+    public JmsListenerContainerFactory<?> queueListenerContainerFactory(ConnectionFactory activeMQConnectionFactory) {
+        DefaultJmsListenerContainerFactory containerFactory = new DefaultJmsListenerContainerFactory();
+        containerFactory.setConnectionFactory(activeMQConnectionFactory);
+        return containerFactory;
+    }
+    @Bean("topicListenerContainerFactory")
+    public JmsListenerContainerFactory<?> topicListenerContainerFactory(ConnectionFactory activeMQConnectionFactory) {
+        DefaultJmsListenerContainerFactory containerFactory = new DefaultJmsListenerContainerFactory();
+        containerFactory.setConnectionFactory(activeMQConnectionFactory);
+        containerFactory.setPubSubDomain(true);
+        return containerFactory;
+    }
+}
+接受类
+@Component
+public class CustomActiveMQReceiver {
+    @JmsListener(destination = "xxxQueue", containerFactory = "queueListenerContainerFactory")
+    public void receiveXxxQueue(Message message) {
+        // 接受消息后操作逻辑
+    }
+    @JmsListener(destination = "xxxTopic", containerFactory = "topicListenerContainerFactory")
+    public void receiveXxxTopic(Message message) {
+        // 接受消息后操作逻辑
+    }
+}
+发送类
+@Service
+public class CustomActiveMQSenderImpl implements CustomActiveMQSender {
+    @Autowired
+    private JmsMessagingTemplate jmsMessagingTemplate;
+    @Autowired
+    @Qualifier("xxxQueue")
+    private Queue xxxQueue;
+    @Autowired
+    @Qualifier("xxxTopic")
+    private Topic xxxTopic;
+    public void sendToXxxQueue(String msg) {
+        jmsMessagingTemplate.convertAndSend(xxxQueue, msg);
+    }
+    public void sendToXxxTopic(String msg) {
+        jmsMessagingTemplate.convertAndSend(xxxTopic, msg);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
