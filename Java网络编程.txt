@@ -69,21 +69,161 @@ Internet不是唯一的基于IP的网络，但却是最大的一个，其他IP�
 Internet地址分块
 区域Internet注册机构会为Internet服务提供商（ISP）分配IPv4地址块，当需要连接基于IP的网络连接时，ISP会分配给一个地址。如果前缀216.254.85，那么可以使用216.254.85.0-216.265.85.255的地址，由于固定了前24位，称为/24。/23则说明固定了23位，有512个地址可以使用，
 网络地址转换
-网络地址转换(Net Address Transaction, NTA)，基于NAT网络中，大多数节点只有不可路由的本地地址，从10.x.x.x/172.16.x.x/172.31.x.x或192.168.x.x选择，将本地网络连接到ISP的路由器会把这些本地地址转换为更小的一组可路由的地址
+网络地址转换(Net Address Transaction, NTA)，基于NAT网络中，大多数节点只有不可路由的本地地址，从10.x.x.x/172.16.x.x/172.31.x.x或192.168.x.x选择，将本地网络连接到ISP的路由器会把这些本地地址转换为更小的一组可路由的地址。路由器会监视出站和入栈连接，调整IP包中的地址。出站的包，将源地址改为路由器的外部地址，对入站的包，将目的地地址改为一个本地地址。IPv6中大部分内容会过时，NAT会毫无意义，但是对于防火墙还是有用的。
+防火墙
+检查所有出入站的数据，保证其合法性。防火墙可以是单独机器。过滤通常是基于网络地址和端口的。Java与防火墙没有太大关系。
+代理服务器
+proxy server与防火墙有关，如果防火墙会组织一个网络上的主机和外界直接建立连接，那么代理服务器就起到中间人的作用。安全优势是外部只能看到代理服务器，而不知道内部机器的主机名和IP地址。
+IP地址一般作用域传输层或网际层，而代理服务器通常工作于应用层。对应用层协议非常了解（例如是SOCKS代理服务器，工作于传输层，可以代理所有TCP和UDP连接）。可以检查通过代理服务器的包，确保其中包含适当类型的数据。
+代理服务器可以用来实现本地缓存（load caching），当请求Web服务器的文件时，代理服务器首先查看此文件是否已在缓存中，如果在则直接提供，不在则先获取再转发给请求放并存储在缓存中。
+代理服务器最大问题在于无法应对所有协议。
 
+## 流
+网络程序所做的很大一部分工作都是简单的输入和输出，将数据字节从一个系统移动到另一个系统。
+Java的I/O建立于流之上。输入流读取数据，输出流写入数据。不同的流类，会读写某个特定的数据源。但是所有输出流都有相同的基本方法来写入数据，所有输入流都有相同的基本方法来读取数据。
+过滤流可以串链到输入流或输出流上，读写数据是，过滤器可以修改数据或者提供额外的方法，将读写的数据转换为其他格式。如DataOutputStream类就提供一个方法，将int转换为4字节，并把这些字节写入底层的输出流。
+阅读器（reader）和书写器（writer）可以串链到输入流和输出流上，允许程序读写文本（即字符）而不是字节，只要正确使用，阅读器和书写器可以处理很多字符编码。
+流是同步的，也就是说，当程序（确切的是线程）请求一个流读写一端数据时，在做任何其他操作前，需要等待所读写的数据。Java支持使用通道和缓冲区的非阻塞I/O。非阻塞I/O稍有些复杂，，但在某些高吞吐量的应用程序中，非阻塞I/O要快的多。
+# 输出流
+基本输出流类为java.io.OutputStream
+提供写入数据所需的基本方法
+public abstract void write(int b) throws IOException;
+public void write(byte[] data) throws IOException;
+public void write(byte[] data, int offset, int length) throws IOException;
+public void flush() throws IOException;
+public void close() throws IOException;
+OutputStream的子类使用这些方法向某种特定介质写入数据。如FileOutputStream写入数据，TelnetOutputStream写入网络连接，ByteArrayOutputStream写入可扩展字节数据。
+OutputStream的基本方法write(int b)，接受一个0-255之间的整数作为参数，将对应的字节写入输出流。这个方法是抽象的，需要各个子类修改这个方法来处理特定的介质。
+虽然write方法接受一个int参数，但实际会写入一个无符号字节。Java没有无符号字节数据类型，所以使用int类型代替。write写入int类型时，只会写入最低4字节（右边4位），其他3个字节将被忽略。大多数TCP/IP实现都会在某种程度上缓存数据，在内存中积累数据字节，到一定数据后，一起发送数据到最终目的地。
+网络硬件中的缓存一样，流还可以在软件中得到缓存，即直接用Java代码缓存，可以通过BufferedOutputStream或BufferedWriter串链到底层留上来实现。flush刷新输出流非常重要。
+不管是否有必要，刷新输出流都很重要。这是个低成本的操作，在关闭前需要刷新输出流。
+最后当结束一个流的操作时，通过调用close()方法将其关闭。这会释放这个流关联的所有资源，如文件句柄或端口。如果流来自一个网络连接，则关闭这个流也会终止这个连接。不过有些流仍然允许对这个对象做一些处理，例如关闭的ByteArrayOutputStream可以转换为实际的字节数组。
+在一个长时间运行的程序中，如果未能关闭一个流，则可能泄漏文件句柄、网络端口和其他资源。JAVA6之前明智的做法是放在finally中关闭流。
+Java7引入带资源的try构造，
+try (OutputStream out = new FileOutputStream("")) {
 
+} catch (IOException e) {
 
+}
+无需finally块，Java会对try块参数表中声明的所有AutoCloseable对象自动调用close()
+# 输入流
+基本类是java.io.InputStream
+基本方法
+public abstract int read() throws IOException;
+public int read(byte[] input) throws IOException;
+public int read(byte[] input, int offset, int length) throws IOException;
+public long skip(long n) throws IOException;
+public int variable() throws IOException;
+public void close() throws IOException;
+InputStream的具体子类使用方法从某种特定介质中读取数据。
+read()方法从输入流中读取1字节数据，作为一个0-255的int返回，结束通过返回-1来表示。read()方法会等待并阻塞其后任何代码的执行，直到有1字节的数据可供读取。输入和输出可能很慢，所以如果程序在做其他重要的工作，要尽量将I/O放在单独的线程中。
+read()方法声明为抽象方法，各个子类需要实现方法来处理特定介质。
+虽然read()只读取1字节，但会返回1个int，把结果存储到字节数组之前就必须进行类型转换。会产生一个-128到127的有符号字节。需要清除返回则需要转换为无符号字符。
+一次读取1字节效率不高，可以使用重载的read()方法，
+read(byte[] input) 尝试填充数组，但不一定成功。如果需要则放到一个循环中进行操作
+int bytesRead = 0;
+int bytesToRead = 1024;
+bytes[] input = new byte[bytesToRead];
+while (bytesRead < bytesToRead) {
+    int result = in.read(input, bytesRead, bytesToRead - bytesRead);
+    if (result == -1)
+        break;
+    bytesRead += result;
+}
+这个方法对于网络流尤为重要。
+available()方法返回在不阻塞的情况下至少可以读取的字节数
+skip()跳过数据不进行读取 （可能用于端点续传等情况）
+close()关闭
+# 标记和重置
+InputStream还有3个不太常用的方法，允许程序备份和重新读取已经读取的数据
+public void mark(int readAheadLimit)
+public void reset() throws IOException
+public boolean markSupported()
+为了重新读取数据，要用mark()方法标记流的当前位置。可以用reset()方法把流重置到之前标记的位置。接下来的读取操作会返回从编辑位置开始的位置。不过，不能随心所欲的向前重置任意远的位置。从标记处读取和重置的字节数由mark的readAheadLimit参数确定。
+此外，一个流在任何时刻只能有一个标记。
+标记和重置通过将标记位置之后的所有字节存储在一个内部缓冲区中来实现。不过，不是所有输入流都支持这一点。在尝试使用标记和重置之前，使用markSupported判断。
+*
+支持的流比较少，不用特别了解
+*
+# 过滤器流
+InputStream和OutputStream可以单个或成组的读写字节。Java提供了很多过滤器类，可以附加到原始流上，在原始字节和各种格式之间来回转换。
+过滤器有两个版本：过滤器流和阅读器、书写器。过滤器流仍然主要将原始数据作为字节处理，阅读器、书写器则处理多种编码文本的特殊情况。
+过滤器以链的形式进行组织。
+# 将过滤器串链在一起
+过滤器通过其构造函数与流连接。
+FileInputStream fis = new FileInputStream("test.txt");
+BufferedInputStream bis = new BufferedInputStream(fis);
+除了链中的最后一个过滤器之外，无论如何都不应该从其他过滤器读取或写入任何内容。
+# 缓冲流
+BufferedOutputStream类将写入的数据存储在缓冲区中（一个名为buf的保护字节数组字段），直到缓冲区满或刷新输出流。然后将数据一次性写入底层输出流。
+BufferedInputStream类也有一个作为缓冲区的保护字节数组，名为buf。调用read()方法时，首先尝试从缓冲区获得请求的数据，只有当缓冲区没有数据时，流才从底层的源中读取数据。会从源中读取尽可能多的数据存入缓冲区，而不管是否需要。文件读取缓冲区可以得到相当大的提升，而网络流则不明显。
+public BufferedInputStream(InputStream in, int bufferSize)
+public BufferedOutputStream(OutputStream out, int bufferSize)
+一个是底层流，从中读取未缓冲的数据，写入缓冲的数据。第二个参数则指定缓冲区的字节数。否则输入流大小为2048字节，输出流为512字节。
+BufferedInputStream没有声明自己的任何新方法，只覆盖InputStream的方法。多次从底层输入流中读取数据，从而完全填充指定的数组或子数组，只有数组或子数组填满或到达流的尾部或底层流阻塞而无法进一步读取时，才返回。
+BufferedOuputStream也没有声明自己的新方法，每次写入会把数据放到缓冲区，当缓冲区满或刷新时写入底层流中。
+# PrintStream
+System.out就是一个PrintStream
+默认情况下，打印流应当显式刷新输出，如果autoFlush参数为true，每次写入1字节数组或者换行，或者调用print()方法时，都会刷新输出流。
+有9个重载的print()方法和10个println()方法
+print()方法都将其参数以可预见的方式转换为一个字符串，再用默认的编码方式把字符串写入底层输出流。println()方法也完成相同的操作，但会在缩写的行末追加一个与平台有关的行分隔符UNIX \n(LF) WINDOWS \r\n (CRLF)
+PrintStream吞掉所有异常，标准方法没有throws IOException声明
+使用public boolean checkError()来检查内部错误标识
+# 数据流
+DataInputStream和DataOutputStream类提供了一些方法，可以用二进制格式读写Java的基本数据类型和字符串。
+11种write方法
+void writeXXX(xxx xxx)
+9种read方法 (writeChars(String chs) writeBytes(String bs) 没有对应的读取方法，使用读取1字符和1字节的方法读取)
+xxx readXXX()
+还有两个读取无符号字符和无符号整数的方法,读取C程序写入的二进制数据时会遇到
+int readUnsignedByte()
+int readUnsignedShort()
+还有多字节read方法,多字节readFully方法(此方法一次读取指定数量的字节，不够则报错)
+read(byte[] input)
+read(byte[] input, int offset, int length)
+readFully(byte[] input)
+readFully(byte[] input, int offset, int length)
+还有readLine()方法 不过不应该使用
+# 阅读器和书写器
+Reader类指定读取字符的API
+Writer类指定写入字符的API
+对应输入和输出使用字节的地方，阅读器和书写器会使用Unicode字符，过滤器阅读器、书写器可以附加到其他阅读器和书写器上，以提供额外的服务或接口
+最重要的具体子类是InputStreamReader和OutputStreamWriter类，InputStreamReader从底层输入流中读取原始字符然后根据指定的编码方式，将字节转换为Unicode字符。OutputStreamWriter则接受Unicode字符，转为为指定编码的字节写入底层输出流。
+java.io包还提供几个原始阅读器和书写器类
+FileReader/FileWriter
+StringReader/StringWriter
+CharArrayReader/CharArrayWriter
+# 书写器
+Writer是OutputStream类的映射，是抽象类。
+write(char[] text, int offset, int length)基础方法，其他4个write()方法都根据它实现的。
+write(int c)
+write(char[] text)
+write(String s)
+write(String s, int offset, int length)
+# OutputStreamWriter
+将字符转为指定编码的字节写入底层输出流中。
+public OutputStreamWriter(OutputStream out, String encoding)
+出了通常的Writer方法，还有一个返回对象编码的方法
+public String getEncoding()
+# 阅读器
+Reader类是java.io.InputStream类的镜像，抽象类。3个read()方法
+int read(char[] text, int offset, int length) 基础方法，其他2个都根据它实现
+int read()
+int read(char[] text)
+从底层输入流中读取字节，从指定的编码转为unicode字符并返回。
+public InputStreamReader(InputStream in, String encoding)
+# 过滤器阅读器和书写器
+InputStreamReader和OutputStreamWriter类相当于输入和输出流之上的装饰器，把面向字节的接口改为面向字符的接口，之后可以将其他面向字符的过滤器放在使用java.io.FilterReader和java.io.FilterWriter类的阅读器或书写器上。
+BufferedReader/BufferedWriter 使用字符数组缓冲区而不是字节数组,默认8192字符
+LineNumberReader
+PushbackReader
+PrintWriter
+# PrintWriter
+取代Java1.0的PrintStream类，能正确处理多字节字符集和国际化文本。
+print() println()方法类似于PrintStream类
+write()方法则写入字符而不是字节。
 
-
-
-
-
-
-
-
-
-
-
+## 线程
 
 
 
