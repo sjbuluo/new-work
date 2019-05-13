@@ -8191,7 +8191,43 @@ public class CustomActiveMQSenderImpl implements CustomActiveMQSender {
 }
 
 
-
+### 工作中遇到的问题
+1.使用ZipOutputStream实现下载Zip压缩文件
+@RequestMapping("/zip")
+public void zip(String[] fileNames, HttpServletResponse response) {
+    response.setHeader("Content-Disposition", "attachment; filename=素材.zip"); // 返回的是一个文件下载响应 让用户浏览器自动反应
+    // response.addHeader("Content-Length", "xxx"); // 由于是压缩文件 可能不清楚压缩文件的实际大小 暂时不设置 用户得到的是未知大小 但是还是能下载
+    response.setContentType("application/zip"); // 下载的是zip文件
+    ZipOutputStream zipOutputStream = null;
+    FileInputStream[] fileInputStreams = new FileInputStream[fileNames.length];
+    int length = 0;
+    byte[] data = new byte[8192];
+    try {
+        zipOutputStream = new ZipOutputStream(response.getOutputStream());
+        for (int i = 0; i < fileNames.length; i++) {
+            FileInputStream fileInputStream = new FileInputStream(fileNames[i]);
+            fileInputStreams[i] = fileInputStream;
+            ZipEntry zipEntry = new ZipEntry(fileNames[i]);
+            zipOutputStream.putNextEntry(zipEntry);
+            while((length = fileInputStream.read(data)) != -1) {
+                zipOutputStream.write(data, 0, length);
+                zipOutputStream.flush();
+            }
+        }
+        zipOutputStream.finish();
+    } catch (Exception ex) {
+        ex.printStack();
+    } finally {
+        if(zipOutputStream != null) {
+            zipOutputStream.close(); // 需要try catch
+        }
+        for(InputStream in : fileInputStreams) {
+            if(in != null) {
+                in.close(); // 需要try catch
+            }
+        }
+    }
+}
 
 
 
