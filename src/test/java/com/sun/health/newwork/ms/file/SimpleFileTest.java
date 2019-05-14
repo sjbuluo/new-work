@@ -25,4 +25,12 @@ public class SimpleFileTest
         outputChannel.transferFrom(inputChannel, 0, inputChannel.size());
 
     }
+
+    @Test
+    public void test3() {
+        File file = new File("/opt/www/version");
+        if(!file.exists()) {
+            file.mkdirs();
+        }
+    }
 }
