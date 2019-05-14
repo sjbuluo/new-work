@@ -35,11 +35,37 @@ echo("\n");
 echo(pi());
 echo("\n");
 $array = array('A', 'b', 'C');
-echo($array);
+//echo($array);
 echo("\n");
 $array['name'] = 'SJ';
 $array['age'] = 25;
 $array['gender'] = 'man';
-echo($array);
+//echo($array);
 echo("\n");
+echo __FILE__;
+echo __LINE__;
+$param1 = '123';
+$param2 = & $param1;
+$param1 = '321';
+echo $param2;
+echo '<br />';
+echo '123'.'321'.'<br />';
+echo null || 'ABC';
+echo '<br />';
+$name = 'SJ';
+function changeName(& $n) {
+    $n = 'JS';
+}
+changeName($name);
+echo $name."<br />";
+function f1() {
+    echo 'func1'.'<br />';
+}
+function f2() {
+    echo 'func2'.'<br />';
+}
+$func = 'f1';
+$func();
+$func = 'f2';
+$func();
 ?>

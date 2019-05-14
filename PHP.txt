@@ -1,111 +1,236 @@
 ********** PHP ********************
-### ��ʶPHP
-## ����
-PHP�﷨�ṹ�򵥣��������ţ��ܶ๦��ֻ��Ҫһ����������
-# ʲô��PHP
-��һ�ַ������ˡ���ƽ̨��HTMLǶ��ʽ�Ľű����ԣ����ص��﷨�����C���ԡ�Java���Ժ�Perl���Ե��ص㣬�㷺Ӧ�õĿ�Դʽ�Ķ���;�ű����ԣ������ʺ�Web����
-# PHP������
-1.��ȫ�Ը�
-2.��ƽ̨��
-3.֧�ֹ㷺�����ݿ�
-4.��ѧ��
-5.ִ���ٶȿ�
-6.���
-7.ģ�廯
-8.֧��������������
-9.��ǶZend��������
+### 初识PHP
+## 概述
+PHP语法结构简单，易于入门，很多功能只需要一个函数即可
+# 什么是PHP
+是一种服务器端、跨平台、HTML嵌入式的脚本语言，独特的语法混合了C语言、Java语言和Perl语言的特点，广泛应用的开源式的多用途脚本语言，尤其适合Web开发
+# PHP的优势
+1.安全性高
+2.跨平台性
+3.支持广泛的数据库
+4.易学性
+5.执行速度快
+6.免费
+7.模板化
+8.支持面向对象与过程
+9.内嵌Zend加速引擎
 
 
-### PHP���Ի���
-## PHP��Ƿ��
-XML���
+### PHP语言基础
+## PHP标记风格
+XML风格
 <?
 /*
- PHP����
+ PHP代码
 */
 ?>
-�ű����
+脚本风格
 <script language="php">
 /* 
-PHP����
+PHP代码
 */
 </script>
-��̷��
-<? /*PHP����*/ ?>
-ASP���
+简短风格
+<? /*PHP代码*/ ?>
+ASP风格
 <%
 /*
-PHP����
+PHP代码
 */
 %>
-## PHPע�͵�Ӧ��
-����ע�� //
-����ע�� /**/
-�ĵ�ע�� /****/
-#����ע�� # 
-## PHP����������
-PHP֧��8��ԭʼ���ͣ�����4�ֱ������ͣ���boolean��integer��fload/double��string��2�ַ������ͣ���array��object��2����������resource��null
-# ������������
-�����������������ݽṹ����������ĵ�Ԫ��ֻ�ܴ洢һ�����ݡ�
-boolean 		��򵥵����ͣ�ֻ������ֵtrue/false
-string			�ַ��������������ַ����У������Ǽ�������ܱ�ʾ��һ���ַ��ļ���
-integer			������������ֻ�ܰ��������������������͸���
-float			���������������ڴ洢���֣������Ͳ�ͬ������С��λ
+## PHP注释的应用
+单行注释 //
+多行注释 /**/
+文档注释 /****/
+#风格的注释 # 
+## PHP的数据类型
+PHP支持8种原始类型，包括4种标量类型，即boolean、integer、fload/double和string，2种符合类型，即array和object，2种特殊类型resource和null
+# 标量数据类型
+标量数据类型是数据结构汇总最基本的单元，只能存储一个数据。
+boolean 		最简单的类型，只有两个值true/false
+string			字符串就是连续的字符序列，可以是计算机所能表示的一切字符的集合
+integer			整数数据类型只能包含整数，可以是正数和负数
+float			浮点数据类型用于存储数字，和整型不同的是有小数位
 1.boolean
 $param = true;
-����false֮�⣬����0��0.0��"0"���հ��ַ���""��ֻ����δ��ֵ�������
+除了false之外，还有0、0.0、"0"、空白字符串""、只声明未赋值的数组等
 2.string
-�������ַ����У������֡���ĸ�ͷ�����ɡ��ַ����е�ÿ���ַ�ֻռ��һ���ֽڡ�PHP����3�ֶ����ַ����ķ�ʽ�������š�˫���źͶ����(<<<)
+连续的字符序列，由数字、字母和符号组成。字符串中的每个字符只占用一个字节。PHP中有3种定义字符串的方式，单引号、双引号和定界符(<<<)
 *
-ע��
-�Է�ת���ַ�ʹ��\�������ʱ�����\
-�ڶ���򵥵��ַ�ʱ��Ӧ��ʹ�õ����ţ�˫����PHP������һ��ʱ���������ַ�����ת��ͱ���������
+注意
+对非转义字符使用\，在输出时将输出\
+在定义简单的字符时，应该使用单引号，双引号PHP将花费一定时间来处理字符串的转义和变量解析。
 *
 $string = <<<str 
-	�ַ���
-	���Զ���
-str // str��ʾ��ʶ�� ָ����ʼ�ͽ��� ����ʱ��������һ�в��Ҳ��ܰ����ո�
+	字符串
+	可以多行
+str // str表示标识符 指定开始和结束 结束时必须另起一行并且不能包含空格
 3.integer
-32λϵͳ�� ��ΧΪ-2^31 ~ 2^31-1
-�����ö����ơ��˽��ơ�ʮ���ƺ�ʮ�����ơ��˽�����Ҫ0ǰ׺��ʮ��������Ҫ0xǰ׺
-���������integer���͵ķ�Χ�������float����
+32位系统中 范围为-2^31 ~ 2^31-1
+可以用二进制、八进制、十进制和十六进制。八进制需要0前缀，十六进制需要0x前缀
+如果超出了integer类型的范围，则会获得float类型
 4.float
-���Դ洢���֣�Ҳ���Դ洢С�����ṩ�ľ��ȱ�������Ķࡣ��32λϵͳ�У���Ч�ķ�Χ��1.7E+308(PHP4.0�汾֮ǰ��double)
-������д��ʽ
-��׼��ʽ
+可以存储数字，也可以存储小数，提供的精度比整数大的多。在32位系统中，有效的范围是1.7E+308(PHP4.0版本之前是double)
+两种书写方式
+标准格式
 3.1415
-��ѧ������
+科学计数法
 3.58E1
 849.72E-3
-�����͵���ֵֻ��һ������ֵ���������⸡��������֮��ıȽϴ�С�������Ľ�������ǲ�׼ȷ��
-# ������������
-array 			һ��������ͬ�ı����ļ���
-object			���������ʵ����ʹ��new����������
+浮点型的数值只是一个近似值，尽量避免浮点整数型之间的比较大小，这样的结果往往是不准确的
+# 符合数据类型
+array 			一组类型相同的变量的集合
+object			对象是类的实例，使用new命令来创建
 1.array
-һ�����ݵļ��ϣ��γ�һ���ɲ��������塣
-ÿ�����ݳ�Ϊһ��Ԫ�أ����������ͼ�ֵ�������֣�Ԫ�ص��������������ֻ��ַ���֧�֡�ֵ������Ƕ�����������
-����������﷨��ʽ
+一组数据的集合，形成一个可操作的整体。
+每个数据成为一个元素，包括索引和键值两个部分，元素的索引可以由数字或字符串支持。值则可以是多种数据类型
+定义数组的语法格式
 $array = array(value1, value2....);
 $array[key] = value;
 $array = array(key1 => value1, key2 => value2, ...);
-����֮��������ɸ��ģ�ֻҪ�����鸳ֵ�ͻ��Զ�������
+声明之后可以自由更改，只要给数组赋值就会自动增长。
 2.object
-֮�����
-# ������������
-resource			��Դ��һ����������������˵��ⲿ��Դ��һ�����ã���Դ��ͨ��ר�ŵĺ�����������ʹ�õ�
-null				�����ֵ����ʾ����û��ֵ��Ψһ��ֵ����null
+之后详解
+# 特殊数据类型
+resource			资源是一种特殊变量，保存了到外部资源的一个引用，资源是通过专门的函数来建立和使用的
+null				特殊的值，表示变量没有值，唯一的值就是null
 1.resource
-PHP4���룬ʹ����Դʱ��ϵͳ���Զ������������ջ��ƣ��ͷŲ���ʹ�õ���Դ�������ڴ����Ĵ�������ˣ���Դ������Ҫ�ֹ��ͷ�
+PHP4引入，使用资源时，系统会自动启用垃圾回收机制，释放不再使用的资源，避免内存消耗殆尽。因此，资源很少需要手工释放
 2.null
-��ʾû�������κ�ֵ �����ִ�Сд
-�������ֵ�����
-��û�и�ֵ
-����ֵnull
-��unset()�����������ı���
-is_null()���������жϱ����Ƿ�Ϊnull ����һ��boolean
-unset()������������ָ���ı���
-# ��������ת��
-
+表示没有设置任何值 不区分大小写
+被赋予空值的情况
+还没有赋值
+被赋值null
+被unset()函数处理过的变量
+is_null()函数用于判断变量是否为null 返回一个boolean
+unset()函数用于销毁指定的变量
+# 数据类型转换
+(boolean)$param # null、0、未赋值的变量或数组转为false 其他true
+(string)$param
+(integer)$param # false转为0 true转为1 浮点型小数位直接舍去 如果以数字开头截取到数字费 否则为0
+(float)$param
+(array)$param
+(object)$param
+还可以借助settype()函数
+bool settype(mixed var, string type) # 成功转换为true 失败为false
+# 检测数据类型
+is_bool
+is_string
+is_float/is_double
+is_integer/is_int
+is_null
+is_array
+is_object
+is_numeric # 是否是数组组成的字符串
+## PHP常量
+# 声明和使用常量
+常量可以理解为值不变的量。
+define()函数来定义常量
+define(string constant_name, mixed value, case_sensitive=false)
+                常量名         值           是否大小写敏感 false敏感 true不敏感
+使用常量可以使用$constant_name或者constant()函数
+mixed constant(string constant_name)
+判断常量是否定义defined()函数
+bool defined(string constant_name)
+# 预定义常量
+__FILE__              默认常量 PHP程序文件名
+__LINE__              默认常量 PHP程序行数
+PHP_VERSION         内建常量 PHP程序版本
+PHP_OS              内建常量 执行PHP解析器的操作系统名称
+TRUE                真值true
+FALSE               假值false
+NULL                空值null
+E_ERROR             指到最近的错误处
+E_WARNING           指到最近的警告处
+E_PARSE             指向解析语法有潜在问题处
+E_NOTICE            发生不寻常处的提示但不一定是错误处
+## PHP变量
+# 变量声明及使用
+PHP4之后无需先声明再使用 只需给变量赋值即可
+$param = value; # 变量间的赋值各自使用各自的内存互不干扰
+$param1 = & $param2 # 内存地址赋值
+*
+引用和复制的区别在于
+复制将原内容复制下来 开辟一个新的内存空间来保存
+而引用则是给变量的内容起个别名
+*
+# 变量作用域
+局部变量        函数内部定义的变量 作用域在函数内部
+全局变量        定义在所有函数之外的变量 作用域是整个PHP文件 但是在用户自定义函数内部不可用 如果希望在用户自定义函数内部使用全局变量 则需要使用global关键字声明
+静态变量        在函数调用结束后依然保留变量值，再次回到作用域时 又可以继续使用原来的值 使用static关键字声明
+# 可变变量
+$a = 'b';
+$b = '123';
+$$a # 就指向了$b
+# PHP预定义变量
+详情查看资料
+## PHP运算符
+# 算术预算福
++ - * / %
+# 字符串运算符
+.将两个字符串串联起来
+# 赋值运算符
+=
++=
+-=
+*=
+/=
+.= # 串联字符 将右边的字符串连接到左边的变量上
+%=
+# 递增和递减运算符
+--
+++
+# 位运算符
+&
+|
+^
+~
+<<
+>>
+# 逻辑运算符
+&& 或 and
+|| 或 or
+xor （异或)
+!
+# 条件运算符
+?: // 三项表达式
+# 运算符的优先级
+详情看PDF
+## PHP表达式
+可以连续赋值 $a=$b=$c=1;
+记住在每个表达式结尾添加分号;
+## PHP函数
+# 定义和调用函数
+function func_name($p1, $p2, $p3...) {
+    <statements>
+}
+# 在函数间传递参数
+1.按值传递
+function func_name($param1, ....) {
+    func_body;
+}
+函数内部对参数修改不影响外部 是局部变量
+2.按引用传递
+function func_name(& $param1, ....) {
+    func_body;
+}
+函数内部修改影响外部 对引用内存的修改
+3.默认参数
+function func_name($param1=default1, ...) {
+    func_body;
+}
+*
+有默认值的参数必须在非默认参数的右边
+*
+# 返回值
+function func_name($param1, ...) {
+    func_body;
+    return xxx;
+}
+# 变量函数
+$func = 'func_name'; # 给一个变量赋值为一个函数
+$func(); # 通过变量调用对应的函数
+## 编码规范
 
 
 
