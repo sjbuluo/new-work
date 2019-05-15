@@ -697,6 +697,147 @@ setcookie('name', '', time() - 1);
 不设定时间，就表示生命周期是浏览器会话的期间，关闭就消失，称为会话Cookie，一般不保存在硬盘上，而是在内存中
 设置了过期时间就会保存在硬盘中直到超时
 浏览器存储的cookie有上线，最大容量有限制，每个域名的cookie有最大数量限制，达到后会自动删除.
+## Session管理
+# 了解Session
+1.什么是Session
+会话，本义是指有始有终的一系列动作/消息。
+计算机专业术语中，Session是指一个终端用户与交互系统进行通信的时间间隔，通常指从注册进入系统到注销退出系统所经过的时间。
+2.Session工作原理
+启动一个Session会话时，会生成一个随机且唯一的session_id,也就是session的文件名，此时session_id存储在服务器的内存中，关闭页面时id自动注销。重新登录页面会再次生成一个随机且唯一的id
+3.Session的功能
+Web技术中非常重要，由于网页是一种无状态的连接程序，因此无法得知用户的浏览状态。通过Session则可记录用户的有关信息，以供用户再次以此身份对Web服务器提交要求时确认身份。
+Session适用于存储信息量较少的情况。
+# 创建会话
+1.启动会话
+session_start() 会话变量被登录到$_SESSION中
+bool session_start()
+使用session_start()前不能有任何输出
+使用session_register()函数 不需要调用session_start()函数 会在注册变量后隐含地调用session_start()
+2.注册会话
+session_start();
+$_SESSION['admin'] = null;
+3.使用会话
+if (!empty($_SESSION['session_name'])) {
+	$myparam = $_SESSION['session_name'];
+}
+4.删除会话
+1)删除单个会话
+unset($_SESSION['session_name']);
+2)删除多个会话
+$_SESSION = array();
+3)结束会话
+session_destory();
+# Session设置时间
+1.客户端没有禁止Cookie
+1)
+session_set_cookie_params($time);
+必须在session_start()之前调用
+2)
+session_start()
+setcookie(session_name(), session_id(), time() + $time, '/');
+2.客户端禁止Cookie
+1)登录之前提醒用户打开Cookie
+2)设置php.ini中 session.use_trans_sid=1 或者编译时打开 -enable-trans-sid选项 让PHP自动跨页面传递session_id
+3)通过GET方法，隐藏表单传递session_id
+4)使用文件或者数据库存储session_id,在页面传递中手动调用
+Session原理为请求页面之后产生一个session_id，如果禁止Cookie就无法传递session_id，就会重新产生一个session_id，造成session传递失效
+# 通过Session判断用户的操作权限
+
+
+## Session高级应用
+# Session临时文件
+服务器中，如果所有用户的Session都保存到临时目录中，会降低服务器的安全性和效率，打开服务器存储的站点非常慢
+使用session_save_path()存储Session临时文件
+session_save_path()应该在session_start()之前调用
+# Session缓存
+将网页中的内容临时存储到IE客户端的Temporaty Internet Files文件夹下，并且设置缓存时间。
+string session_cache_limiter([string cache_limiter])
+cache_limiter 为private或public
+int session_cache_expire([int new_cache_expire])
+设置缓存时间 单位是分钟
+以上两个函数需要在session_start()前调用
+# Session数据库存储
+bool session_set_save_handler(string open, string close, string read, string write, string destroy, string gc)
+open(save_path, session_name) 	找到存储地址，取出变量名名称
+close()							关闭数据库
+read(key)						读取session键值 key对应session_id
+write(key, data)				data对应设置的session变量
+destroy(key)					注销session对应的Session键值
+gc(expire_tiem)					清除过期Session记录
+function _session_open($save_path, $session_name) {
+	global $handle;
+	$handle = mysql_connect('localhost', 'root', ''root') or die('数据库连接失败');
+	mysql_select_db('db_database', $handle) or die('没有此库名');
+	return (true);
+}
+function _session_close() {
+	global $handle;
+	mysql_close($handle);
+	return (true);
+}
+function _session_read($key) {
+	global $handle;
+	$time = time();
+	$sql = "select session_data from tb_session where session_key = '$key' and session_time > $time";
+	$result = mysql_query($sql, $handle);
+	$row = mysql_fetch_array($result);
+	if ($row) {
+		return ($row['session_data']);
+	} else {
+		return (false);
+	}
+}
+function _session_write($key, $data) {
+	global $handle;
+	$time = 60 * 60;
+	$lapse_time = time() + $time;
+	$handle = mysql_connect('localhost', 'root', 'root') or die ('数据库连接失败');
+	mysql_select_db('db_database', $handle) or die('没有此库');
+	$sql = "select session_data from tb_session where session_key = '$key' and session_time > $lapse_time";
+	$result = mysql_query($sql, $handle);
+	if(mysql_num_rows($result) == 0) {
+		$sql = "insert into tb_session values ('$key', '$data', $lapse_time)";
+		$result = mysql_query($sql, $handle);
+	} else {
+		$sql = 'update tb_session set session_key = '$key', session_data = '$data', session_time = $lapse_time where session_key = '$key'";
+		$result = mysql_query($sql, $handle);
+	}
+	return ($result);
+}
+function _session_destroy($key) {
+	global $handle;
+	$sql = "delete from tb_session where session_name = '$key'";
+	$result = mysql_query($sql, $handle);
+	return ($result);
+}
+function _session_gc() {
+	global $handle;
+	$lapse_time = time();
+	$sql = "delete from tb_session where session_tiem < $lapse_time";
+	$result = mysql_query($sql, $handle);
+	return ($result);
+}
+
+### 图形图像处理技术
+
+### 文件系统
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
