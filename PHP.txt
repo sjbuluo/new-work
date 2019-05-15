@@ -231,31 +231,472 @@ function func_name($param1, ...) {
 $func = 'func_name'; # 给一个变量赋值为一个函数
 $func(); # 通过变量调用对应的函数
 ## 编码规范
+# PHP命名规则
+1.类命名
+使用大写字母作为词的分隔，其他字母均使用小写
+名字的首字母大写
+不要使用下划线
+class Name {
+
+}
+2.类属性命名
+属性命名应该以字符m为前缀
+前缀m后采用与类命名一致的规则
+m总是在名字开头起修饰作用
+$mName
+3.方法命名
+命名规范与类命名规范一致
+4.方法中参数命名
+第一个字符使用小写
+首字符后的所有字符都按照类命名规则首字符大写
+5.变量命名
+所有字母小写
+使用_作为每个词的分界
+6.引用变量
+带有r前缀
+7.全局变量
+带有g前缀
+8.常量/全局变量
+应该全部使用大写 单词之间用_分隔
+9.静态变量
+带有s前缀
+10.函数命名
+所有名称都使用小写，多个单词以_分隔
+
+### 流程控制语句
+## 条件控制语句
+# if-else if-else语句
+if (expression) {
+	语句1;
+	语句2;
+} else if (expression) {
+	语句1;
+	语句2;
+} else {
+	语句;
+}
+# swtich语句
+swtich (变量或表达式) {
+	case 常量表达式1:
+		语句1;
+		break;
+	case 常量表达式2:
+		语句2;
+		break;
+	case 常量表达式3:
+		语句3;
+		break;
+	default:
+		语句n+1;
+		break;
+}
+## 循环控制语句
+# while循环
+whlile (表达式) {
+	语句
+}
+# for循环
+for (初始化语句; 判断语句；迭代表达式语句) {
+	语句;
+}
+# foreach循环
+foreach ($array as $item) {
+	语句;
+}
+foreach ($array as $key => $value) {
+	语句;
+}
+foreach用于未初始化的数组或其他类型的变量会报错 应该先使用is_array判断一下
+## 跳转语句
+# break
+可以终止当前循环，包括while do...while for foreach和switch在内的所有控制语句
+break不仅可以跳出当前循环 还可以指定跳出几重循环
+break $num;
+# continue
+只能终止本次循环进入下一次循环中，也可以指定跳出几层循环
+### 字符串操作
+## 字符串的定义方法
+# 使用单引号或双引号定义字符串
+双引号中的内容是通过PHP的语法分析器解析过的，任何变量在双引号中都会被转换为实际的值输出显示
+而单引号则是所见即所得，直接输出不经过转换
+# 使用定界符<<<
+与双引号一样，变量会被替换为实际的值。
+## 字符串操作
+# 去除字符串首尾空格和特殊字符
+1.trim函数
+用于去除字符串首尾处的空白字符（或其他字符）
+trim(string str[, string charlist]);
+charlist可选，为所有希望过滤的字符，可以使用..列出一个字符范围。如果不设置该参数，则所有的可选字符都将被删除。
+不指定charlist参数是的trim()函数去除的字符
+\0
+\t
+\n
+\x0B
+\r
+" "
+2.ltrim()
+用于去除字符串左边的空白字符(或其他字符)
+3.rtrim()
+用于去除字符串右边的空白字符（或其他字符）
+# 转义、还原字符串数据
+1.手动转义、还原字符串数据
+\是转义符，紧跟之后的第一个字符将变得没有意义或者特殊意义。
+2.自动转义、还原字符串数据
+string addslashes(string str)函数 输入需要转义的字符串 返回转义后的字符串
+string stripslashes(string str) 输入转义后的字符串 返回还原的字符串（即去除反斜杠\)
+string addcslashes(string str, string charlist) 在指定的字符串前加上反斜杠 如果参数charlist中包含\n\r等字符，将以C语言风格转换 而其他非字母数据且ASCII低于32以及高于126的字符均转换为八进制表示
+string stripcslashes(string str) 将转义后的字符串还原
+# 获取字符串的长度
+int strlen(string str) 函数
+汉字占用两个字符，数字、英文、小数点、下划线和空格占一个字符
+也可以用于检测字符串的长度
+# 截取字符串
+string substr(string str, int start[, int length])
+start从0开始
+# 比较字符串
+1.按字节进行字符串比较
+int strcmp(string str1, string str2) // 区分字符大小写 相等则返回0 str1大于str2则返回大于0 小于则返回小于0
+strcasecmp(string str1, string str2) // 不区分字符大小写
+2.按自然排序法进行字符串比较
+int strnatcmp(string str1, string str2) // 从左向右进行比较，如果数字比较则按照自然排序法 其他则根据字符的ASCII码值进行比较
+3.指定从源字符串的位置开始比较
+int strncmp(string str1, string str2, int len) // 比较字符串的前n个字符
+# 检索字符串
+1.strstr()函数查找指定的关键字
+获取一个指定字符串再另一个字符串中首次出现的置为到后者末尾的子字符串，有则返回剩余字符串，没有返回false
+string strstr(string haystack, string needle) // 区分大小写
+string strrchr(string haystack, string needle) // 后序开始搜索
+2.substr_count()搜索子串出现的次数
+int substr_count(string haystack, string needle) 
+# 替换字符串
+1.str_ireplace() 
+mixed str_ireplace(mixed search, mixed replace, mixed subject[, int count])
+search 可以是数组 要搜索的值
+replace 替换的值
+subject 可以是数组 被搜索的值
+count 替换的数量
+str_treplace() 不区分大小写 str_replace 区分
+2.substr_replace()函数
+用于将指定字符串的部分字符串进行替换
+mixed substr_replace(mixed string, mixed repl, mixed start[, mixed length])
+string 可以是数组 要操作的原始字符串
+repl 指定替换后的字符串
+start 开始位置
+length 长度
+# 格式化字符串
+string number_format(float number[, int decimals[, string dec_point[, tring thousands_sep]]])
+number 要格式化的数字
+decimals 要保留的小数位
+dec_point 小数点显示的字符
+thousands 千位分隔的字符
+# 分割、合成字符串
+1.分割字符串
+array explode(string delimiter, string str[, int limit])
+delimiter 分割符
+str 	被分割的字符串
+limit 返回的数组中最多包含limit个元素
+2.合成字符串
+string implode(string glue, array pieces)
+glue 分隔符
+pieces 合成的数组
+### 正则表达式
+## 什么是正则表达式
+描述字符串结构的语法规则，是一个特定的格式化模式，可以匹配、替换、裁取匹配的子串。
+## 正则表达式语法规则
+# 行定位符
+^
+$
+# 单词分解符
+\b // \btm\b 表示需要匹配的是一个完整的单词而不是一部分
+\B // \Btm\B 表示需要匹配的是一部分而不是完整的单词
+# 字符类
+[] 出现在括号内的都匹配
+[:digit:] 十进制数字集合 [0-9]
+[[:alnum:]] 字母和数字的集合 [a-zA-Z0-9]
+[[:alpha:]] 字母集合 [a-zA-Z]
+[[:blank:]] 空格和制表符
+[[:xdigit:]] 十六进制数字
+[[:punct:]] 特殊字符集合 如@!#$?等
+[[:print:]] 可打印字符 包括空格
+[[:space:]] 空白字符
+[[:graph:]] 可打印字符 不包括空格
+[[:upper:]] 大写字符 [A-Z]
+[[:lower:]] 小写字符 [a-z]
+[[:cntrl:]] 控制字符
+# 选择字符
+| 或
+# 连字符 
+- 表示字符的范围
+# 排除字符
+[^] 匹配不匹配括号内的其他字符
+# 限定符
+?
+*
++
+{n, m}
+# 点号字符
+除换行符以外的任意字符
+# 转义字符
+\ 将特殊意义的字符转换为普通字符
+# 反斜线
+1.将不可打印的字符显示出来
+\a
+\b
+\e
+\f
+等
+2.指定预定义字符集
+\d 一个十进制数字
+\D 非十进制数字
+\s 空白字符
+\S 非空白字符
+\w 单词
+\W 非单词
+3.断言的限定符
+# 括号字符
+(xxx|yyy) 表示匹配xxx或yyy
+第二个作用是分组
+# 反向引用
+# 模式修饰符
+设定模式，规定正则表达式应该如何解释和应用
+i		忽略大小写
+M		多文本模式 即字符串内部有多个换行符时 影响^$的匹配
+s		单文本模式 .可以匹配换行符 其他模式下不行
+X		忽略空白字符
+## PCRE兼容正则表达式
+# preg_grep()函数
+array preg_grep(string pattern, array input)
+使用数组input中的元素一一匹配表达式pattern，返回匹配元素组成的数组
+# preg_match() preg_match_all()
+int preg_match/preg_match_all(string pattern, string subject[, array matches])
+字符串subject中匹配表达式pattern，如果有数组则每次匹配都存储到matches数组中
+返回值是0或1 preg_match匹配到第一个就返回 preg_match_all则匹配全部 array matches对preg_match_all是必须的
+# preg_quote()函数
+string preg_quote(string str[, string delimiter])
+将字符串str中的所有特殊字符进行自动转义 如果有delimiter则对应的子串也将转义
+# preg_replace()函数
+mixed preg_replace(mixed pattern, mixed replacement, mixed subject[, limit])
+在字符串subject中匹配表达式pattern， 将匹配项替换成子串repleacement
+在replacement中使用$1 $2获取匹配的分组字符串
+# preg_replace_callback() 函数
+mixed preg_replace_callback(mixed pattern, callback callback, mixed subject[, int limit])
+使用回调函数而不是字符串来替换 
+function func($arr) { // 传入的参数是一个数组 需要留意
+	return $str;
+}
+# preg_split()函数
+array preg_split(string pattern, string subjec[, int limit])
+### PHP数组
+## 什么是数组
+一组数据的集合
+## 声明数组
+array array([mixed ...])
+mixed语法为 key => value 如果没有指定key 则自动生成从0开始的整数索引
+print_r($arr) 迭代输出一个数组
+## 数组的类型
+PHP支持两种数组 索引数组（indexed array)和联合数组(associative array)前者使用数字作为key，后者使用字符串作为key
+# 数字索引数组
+数字索引一般表示数组元素在数组中的位置，有数字组成，下标从0开始，数字索引数组默认索引值从0开始。也可以从指定位置开始保存数据
+# 关联数组
+关联数组使用字符串索引来访问存储在数组中的值 对于数据库层交互非常有用
+## 输出数组
+bool print_r(mixed expression)
+##数组的构造
+# 一维数组
+数组元素时变量
+# 二维数组
+数组元素时一维数组
+##　遍历数组
+1.使用foreach结构遍历数组
+foreach ($arr as $item) {
+
+}
+foreach ($arr as $key => $value) {
 
 
+}
+2.list()函数
+void list(mixed ....) 仅用于数字索引的数组
+## 字符串与数组的转换
+1.explode()函数 将字符串转换为数组
+array explode(string delimiter, string str[, int limit]);
+2.implode()函数 将数组转换为字符串
+string implode(string glue, array piceces)
+## 统计数组元素个数
+int count(mixed array[, int mode])
+mode 可选参数 COUNT_RECURSIVE(或者1)递归的对数组计算 默认0
+## 查询指定元素
+mixed array_search(mixed needle, array haystack[, bool strict])
+找到指定值则返回键名，否则返回false  strict为true时还将检查类型是否符合
+## 获取数组中最后一个元素
+mixed array_pop(array array)
+获取并返回数组的最后一个元素，数组长度减一 数组为空或不是数组时返回null
+## 添加元素
+int array_push(array array, mixed var[, mixed ....])
+将传入的变量压入数组的尾部，数组长度加一，并返回数组元素总数
+## 删除数组中重复元素
+array array_unique(array array)
+用于将值作为字符串排序，然后每个只保留第一个键名，忽略后面所有的键名，即删除重复元素
+
+### PHP与Web页面交互
+## 表单
+# 创建表单
+<form action="" method="" enctype="" target="">
+target _blank 新窗口 _self 当前窗口 _parent 父窗口 _top 顶级窗口
+# 表单元素
+1.<input>
+2.<select><option>
+3.<textarea>
+## 在普通Web也中插入表单
+## 获取表单数据的两种方法
+#POST
+#GET
+## PHP参数传递的常用方法
+# $_POST[]全局变量
+通过post方法提交过来的数据
+有些可以直接使用$<参数名>来获取数据 与php.ini的配置有关 register_globals=ON/OFF ON则可以取的到 但存在安全隐患 推荐使用OFF
+# $_GET[]全局变量
+通过GET方法提交过来的数据
+# $_SESSION[]变量
+获取表单元素的值 使用$_SESSION传参方法获取的变量值，保存之后可以在任何页面中使用 但很耗费系统资源
+## 在Web页面中嵌入PHP脚本
+# 在HTML标记中添加PHP脚本
+可以随时添加<?php ?>PHP脚本标记，标记中的所有文本将被解释为PHP，标记之外的则被认为是普通的HTML
+# 对表单元素value属性赋值
+value="<?php  echo 123;?>"
+## PHP中获取表单数据
+# 获取文本框、密码域、隐藏域、按钮、文本域的值
+<form>标签中的name是所有表单元素都具备的属性，即为这个表单元素的名称，在使用时使用name属性来获取相应的value值。
+# 获取单选按钮的值
+radio一般成组出现，具有相同的name和不同value
+# 获取复选框的值
+checkbox 相同的name 不同的value 可以是多个值 name一般以数组的命名以[]结尾
+# 获取下拉列表框/菜单列表框的值
+select option
+# 文件
+file
+## URL传递的参数进行编解码
+# 对URL传递的参数编码
+string urlencode(string str)
+对服务器而言，可以自动识别
+# 对URL传递的参数解码
+string urldecode(string str) 
+## PHP与Web表单的综合应用
+move_upload_file($_FILES['name']['tmp_name'], 目的地包括保存的文件名);
+
+### PHP与JavaScript交互
+如同在HTML中一样使用即可
+
+### 日期和时间
+## 系统时区设置
+# 时区划分
+24个时区 UTC
+# 时区设置
+1.修改php.ini配置文件中的;date.timezone=选项 Asia/Shang_Hai
+2.在应用程序中使用date_defualt_timezone_set(timezone)
+## PHP日期和时间函数
+# 获得本地化时间戳
+mktime()函数将一个时间转换为UNIX时间戳
+int mktime(int hour, int minute, int second, int month, int day, int year,int [is_dst]) 默认-1（不确定）夏令1 不是0
+# 获取当前时间戳
+int time(void)
+# 获取当前日期和时间
+date(string format[, int timestamp = time()])
+返回按照指定格式产生的字符串 timestamp为可选值 不提供则为当前时间戳
+预定义的format
+DATE_ATOM			原子钟格式
+DATE_COOKIE			HTTP Cookie格式
+DATE_ISO8601		ISO8601格式
+DAtE_RFC822
+DATE_RFC850
+DATE_RSS
+DATE_W3C			World wide web Consortium格式
+# 获取日期信息
+array getdate([int timestamp]);
+# 检验日期的有效性
+bool checkdate(int month, int day, int year)
+# 输出格式化的日期和时间
+a			小写的上午或下午 am或pm
+A			大写的上午或下午 AM或PM
+B			Swatch Internet标准时间 返回值为000~999
+d			月份中的第几天 有前导的0 范围1~31
+D			星期中的第几天 文本格式 3个字母 Mon~Sun
+F			月份 完整的文本格式 January~December
+h			小时 12小时格式
+H			小时 24小时格式
+i			有前导零的分钟数
+I			判断是否为夏令
+j			月份中的第几天 没有前导0
+l			星期数 完整的文本格式 返回
+L			是否是闰年 是为1 不是为0 
+m			数字表示的月份 有前缀0
+M			3个字母缩写表示的月份 Jan~Dec
+n			数字表示的月份 没有前导0
+O			与格林威治时间相差的小时数 如+0200
+r 
+s			描述 有前导0
+S			每月天数后面的英文后缀 两个字符 如st nd等
+t			每月应有天数 28~31
+T 			所在时区
+U			从UNIX纪元1970-01-01 00:00:00+0000开始至今的秒数
+w			星期中的第几天 0~6
+W			第几周 每周从周一开始
+y			两位数字表示的年份 如88
+Y			四位数字表示的年份 如1988
+z			年份中的第几天 1~366
+Z 			时差偏移量的秒数
+# 显示本地化的日期和时间
+1.setlocale()函数
+改变PHP默认的本地化环境
+string setlocale(string category, string locale)
+category可选项
+LC_ALL					包含以下所有设置本地化规则
+LC_COLLATE				字符串比较
+LC_CTYPE				字符串分类和转换
+LC_MONTARY				本地化环境的货币形式
+LC_NUMERIC				本地化环境的数值形式
+LC_TIME					本地化环境的时间格式
+locale为空 就会使用环境变量的locale或lang的值 en_US美国 chs简体中文 cht繁体中文
+2.strftime()桉树
+根据本地化环境设置来格式化输出日期和时间
+string strftime(string format, int timestamp)
+# 将日期和时间解析为UNIX时间戳
+int strtotime(string time[, int now])
+# 实现倒计时功能
+# 页面脚本的运行时间
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+******************* 核心技术 *****************
+### Cookie和Session
+## Cookie管理
+# 了解Cookie
+1.什么事Cookie
+是一种远程浏览器端存储数据并以此来跟踪和识别用户的机制，简单的说，Cookie是Web服务器暂时存储在用户硬盘上的一个文本文件，并随后被Web浏览器读取。用户再次访问Web网站时，通过读取Cookie文件记录这位访客的特定信息。
+文本文件的命令格式
+用户名@网站地址[数字].txt
+2.Cookie的功能
+Web服务器可以应用Cookie包含信息的任意性来筛选并经常性维护这些信息 常用于这些方面
+A.记录访客的某些信息 如访问次数 登录的用户名等
+B.在页面之间传递变量
+C.将所查看的Internet页存储在Cookie的临时文件夹中 提高浏览速度
+# 创建Cookie
+bool setcookie(string name[, string value[, int expire[, string path[, string domain[, int secure]]]]])
+name 		Cookie的变量名 $_COOKIE['<cookie_name>']获取Cookie
+value		变量值 保存在客户端
+expire		过期时间 标准的UNIX时间戳 如果不设置过期时间将永远有效 除非手动删除
+path		Cookie在服务器端的有效路径	如果/则在整个domain中有效 如果/ll则在domain下的/ll目录及其子目录中有效 默认是当前目录
+domain		Cookie的游侠域名	如果要在所有xxx.com域名下的子域都有效 则应该设置为xxx.com
+secure		指明Cookie是否仅通过安全的HTTPS 值为0或1	1则只在HTTPS连接上有效 0则都有效
+# 读取Cookie
+通过超级全局数组$_COOKIE[]来读取浏览器端的Cookie值
+# 删除Cookie
+1.使用setCookie()函数删除
+setcookie('name', '', time() - 1);
+2.手动删除Cookie
+# Cookie的生命周期
+不设定时间，就表示生命周期是浏览器会话的期间，关闭就消失，称为会话Cookie，一般不保存在硬盘上，而是在内存中
+设置了过期时间就会保存在硬盘中直到超时
+浏览器存储的cookie有上线，最大容量有限制，每个域名的cookie有最大数量限制，达到后会自动删除.
 
 
 
