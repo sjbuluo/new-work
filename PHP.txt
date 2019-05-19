@@ -1090,11 +1090,163 @@ unserialize()函数反序列化对象，__wakeup方法则是在恢复可能丢�
 
 
 
+### PHP加密技术
+## PHP加密函数
+# 使用crypt()函数进行加密
+string crypt(string str[, string salt])
+str是需要加密的字符串 salt是加密时使用的干扰字符串 如果省略第二个参数 则会随机生成一个干扰字符串
+crypt()函数支持4种算法和salt参数的长度
+CRYPT_STD_DES			2-character(默认)
+CRTPT_EXT_DES			9-character
+CRYPT_MD5				12-character $1$开头 
+CRYPT_BLOWFISH			16-character $2$开头
+默认情况下，PHP使用一个或两个字符的DES干扰字符串 如果使用MD5 则会使用12个字符 通过CRYPT_SALT_LENGTH变量来查看当前所使用的干扰字符串的长度
+加密是单向了 密文不能还原成明码
+# 使用md5()函数进行加密
+md5()函数使用MD5算法 作用是把不同长度的数据信息结果一系列的算法计算成一个128位的数值，就是把一个任意长度的字节串转换为一定长的大整数。
+string md5(string str[, bool raw_outptu])
+str加密的明文 raw_output如果true返回一个二进制的密文 默认为false
+# 使用sha1()函数进行加密
+string sha1(string str,[bool raw_output])
+返回一个40位的十六进制数，如果raw_output为true 返回一个20位的二进制
+## PHP加密扩展库
+# Mcrypt扩展库
+1.Mcrypt库安装
 
+*
+Mcrypt在PHP7.2之后过时 
+*
 
+### MySQL数据库基础
+## MySQL概述
+## 启动和关闭MySQL
+## 操作MySQL
+## MySQL数据类型
 
+### PHP操作MySQL数据库 (需要打开php.ini中配置 extension_dir=/ext和extension=mysqli)
+## PHP操作MySQL数据库的方法
+# 连接MySQL服务器
+mysqli mysqli_connect([string server[, string username, [string password[, string dbname[, int port[, string socket]]]]]])
+mysqli_connect函数用于打开一个MySQL服务器的连接 如果成功返回一个MySQL连接标识 失败返回false
+servver		MySQL服务器地址
+username	用户名 默认值是服务器进程所有者的用户名
+password 	密码 默认值空
+dbname		连接的数据库名称
+port		Mysql服务使用的端口号
+socket 		UNIX域的socket
+# 选择MySQL数据库
+在mysqli_connect中指定数据库或者mysqli_select_db
+bool mysqli_select_db(mysqli link, string dbname)
+*
+实际开发中 将MySQL服务器的连接和数据库的选择存储于一个单独文件中，需要使用的脚本中通过require语句包含这个文件即可，即有利于程序维护也避免代码冗余。
+*
+# 执行SQL语句
+mixed mysqli_query(mysqli_link, string query[, int resultmode])
+link 为必选参数 mysqli_connect返回的连接标识
+query 必选参数 只要执行的查询语句
+resultmode 可选参数 取值有MYSQLI_USE_RESULT和MYSQL_STORE_RESULT,MYSQLI_STORE_RESULT默认，大量返回数据则使用MYSQLI_USE_RESULT
+select 查询成功返回查询结果集 否则返回false；update insert delete则执行成功返回true 失败返回false
+# 将结果集返回到数组中
+array mysqli_fetch_array(resource result[, int result_type])
+result 			资源类的参数 传入的是由mysqli_query函数返回的数据执行。
+result_type		可选项 设置结果集数组的表述方式
+				MYSQLI_ASSOC	关联数组 数组下标由表的字段组成
+				MYSQLI_NUM		索引数组 数组下标由数组组成
+				MYSQLI_BOTH		返回一个同时包含关联和数字索引的数组 默认值
+*
+mysqli_fetch_array返回的字段名区分大小写
+*
+# 从结果集中获取一行作为对象
+object mysqli_fetch_object(resource result)
+使用$row->col_name获取数据
+# 从结果集中获取一行作为枚举数组
+mixed mysqli_fetch_row(resource result)
+# 从结果集中获取一行作为关联数组
+mixed mysqli_fetch_assoc(resource result)
+# 获取查询结果集中的记录数组
+int mysqli_num_rows(resource result)
+# 释放内存
+void mysqli_free_result(resource result);
+# 关闭连接
+bool mysqli_close(mysqli link)
+# 连接和关闭MySQL服务器的最佳时机
+MySQL服务器连接应该及时关闭，但并不是说每一次数据库操作后都需要立即关闭MySQL连接
+## 管理MySQL数据库中的数据
+# 添加数据
+mysqli_query("insert table_name (col_name1, ...) values (val1, ...)")
+# 编辑数据
+mysqli_query("update table_name set col_name1 = val1, ... where condition")
+# 删除数据
+mysqli_query("delete from table_name where condition")
 
-
+### PDO数据库抽象层
+## 什么是PDO
+PHP Data Object 支持的数据库包括MySQL Oracle常用书出具
+PHP6中默认使用PDO
+# 特点
+数据库访问抽象层，作用是同一各种数据库的访问接口
+通过一种轻型、清晰、方便的函数，统一各种不同RDBMS的共有特性
+PDO扩展是模块化的，能够在运行时为数据库后端加载驱动宏程序
+打开php.ini中的extension=pdo_<dbms_name>
+## PDO连接数据库
+$pdo = new PDO("<dbms_name>:host=<host>:<port>?dbname=<dbname>", <username>, <password>);
+# DSN详解
+Data Source Name，提供联结数据库需要的信息，包括3部分POD驱动名称（如mysql/sqlite等）:和驱动特定的语法
+## PDO中执行SQL语句
+# exec方法
+int PDO::exec(string statement)
+返回影响的行数
+# query方法
+PDOStatement PDO::query(string statement)
+返回一个PDOStatemetn
+# 预处理语句prepare和execute
+PDOStatement PDO::prepare(string statement[, array driver_options])
+bool PDO::execute([array input_parameters])
+## PDO中获取结果集
+# fetch方法
+mixed PDOStatement::fetch([int fetch_style[, int cursor_orientation[, int cursor_offset]]])
+fetch_style控制结果集返回形式
+PDO::FETCH_ASSOC		关联数组
+PDO::FETCH_NUM			索引数组
+PDO::FETCH_BOTH			两种形式都有 默认
+PDO::FETCH_OBJ			对象形式
+PDO::FETCH_BOUND		布尔值的形式
+PDO::FETCH_LAZY			关联数组、索引数组和对象数组 3种都有
+cursor_orientation 		PDOStatement对象的一个滚动游标 用于获取指定一行
+cursor_offset 			游标的偏移量
+# fetchAll方法
+array PDOStatement::fetchAll([int fetch_style[, int column_index])
+# fetchColumn方法
+string PDOStatement::fetchColumn([int column_number])
+数字化行中列的索引值，从0开始，默认从第一行开始取值
+## PDO中捕获SQL语句中的错误
+# 默认模式-PDO:ERRMODE_SILENT
+设置PDOStatement中的errorCode属性 需要手动检测代码错误
+# 警告模式-PDO::ERRORMODE_WARNING
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_WARNING)
+产生一个PHP警告，设置errorCode属性，除非明确检查错误，否则程序继续运行
+# 异常模式-PDO:ERRORMODE_EXCEPTION
+创建一个PDOException，并设置errorCode属性可以将执行代码封装到一个try catch语句块中，未捕获的异常将会导致脚本终端，并使用堆栈跟踪显示哪里出现的问题
+## PDO中错误处理
+# errorCode方法
+用于获取再操作数据库句柄时所发生的错误代码
+int PDOStatement::errorCode(void)
+返回一个SQLSTATE由5个数字和字母组成的代码
+# errorInfo方法
+用于获取操作数据库句柄时发生的错误信息
+返回一个数组，包含了相关的错误信息
+## PDO中事务处理
+1.开启事务
+beginTransaction
+关闭自动提交 直到事务提交或回滚后才恢复
+2.提交事务
+commit
+提交事务 成功返回true 否则false
+3.事务回滚
+rollback
+执行事务回滚操作
+## PDO中存储过程
+call 
 
 
 
