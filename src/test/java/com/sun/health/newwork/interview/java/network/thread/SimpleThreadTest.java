@@ -3,6 +3,7 @@ package com.sun.health.newwork.interview.java.network.thread;
 import org.junit.Test;
 
 import javax.xml.bind.DatatypeConverter;
+import java.sql.Time;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.*;
@@ -57,6 +58,16 @@ public class SimpleThreadTest implements DigestResultPrinter {
         executorService.submit(new NoSynchronziedRunnable("PHP.txt"));
         executorService.shutdown();
         TimeUnit.SECONDS.sleep(1);
+    }
+
+    @Test
+    public void test6() throws InterruptedException {
+        Thread thread = new Thread(new InterruptRunnable());
+        thread.start();
+        TimeUnit.SECONDS.sleep(1);
+        thread.interrupt();
+        TimeUnit.SECONDS.sleep(1);
+        System.out.println("结束");
     }
 
     @Override
