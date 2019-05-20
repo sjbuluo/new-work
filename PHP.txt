@@ -1087,9 +1087,14 @@ __clone
 3.__sleep和__wakeup方法
 使用serialize()函数可以实现序列化对象，将对象中的变量全部保存下来。如果包含__sleep()方法则先执行__sleep 目的是关闭对象可能具有的数据库连接等类似的善后工作 return array("field_name") 只有在这个数组中的成员变量会被序列化
 unserialize()函数反序列化对象，__wakeup方法则是在恢复可能丢失的工作
+4.__toString方法
+当使用echo和print输出对象时，将对象转化为字符串
+5.__autoload方法
+将一个独立、完整的类保存到一个PHP页中，并且文件名和类名保持一致，__autoload方法可以自动实例化需要使用的类
 
-
-
+### PHP加密技术
+## PHP加密函数
+# crypy()函数进行加密
 
 
 
