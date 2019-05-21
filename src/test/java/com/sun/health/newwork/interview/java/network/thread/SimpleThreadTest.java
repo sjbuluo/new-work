@@ -70,6 +70,46 @@ public class SimpleThreadTest implements DigestResultPrinter {
         System.out.println("结束");
     }
 
+    @Test
+    public void test7() throws InterruptedException {
+        CounterTask counterTask = new CounterTask();
+        Thread oddThread = new Thread(() -> {
+            while (true) {
+                int i = -1;
+                try {
+                    i = counterTask.printOdd();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                if (i == -1)
+                    continue;
+                if (i > 50) {
+                    Thread.interrupted();
+                }
+                System.out.println("Thread odd: " + i);
+            }
+        });
+        Thread evenThread = new Thread(() -> {
+            while (true) {
+                int i = -1;
+                try {
+                    i = counterTask.printEven();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                if (i == -1)
+                    continue;
+                if (i > 50) {
+                    Thread.interrupted();
+                }
+                System.out.println("Thread even: " + i);
+            }
+        });
+        oddThread.start();
+        evenThread.start();
+        TimeUnit.SECONDS.sleep(100);
+    }
+
     @Override
     public void printDigestResult(String filename, byte[] data) {
         System.out.println(filename + ":" + DatatypeConverter.printHexBinary(data));
