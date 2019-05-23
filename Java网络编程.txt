@@ -513,3 +513,212 @@ public URI(String scheme, String host, String path, String fragment)
 public URI(String scheme, String authority, String path, String query, String fragment)
 public URI(String scheme, String userInfo, String host, int port, String path, String query, String fragment)
 URI不依赖于底层协议处理器，只要URI语法正确，Java就不需要为了创建URI对象而理解其协议
+# URI各部分
+URI引用包括最多三个部分：模式、模式特定部分和片段标识符 一般格式为
+模式:模式特定部分:片段
+如果省略模式，则URI引用是相对的。
+public String getScheme()
+public String getSchemeSpecificPart()
+public String getRawSchemeSpecificPart()
+public String getFragment()
+public String getRawFragment()
+如果没有对应部分，则方法返回null
+public boolean isAbsolute() // 有模式是绝对URI返回true 否则返回false
+模式特定部分的细节根据模式类型不同有所差别。
+public boolean isOpaque() // 如果URI是一个层次URI（比如file或http)返回false 否则返回true
+public String getAuthority()
+public String getFragment()
+public String getHost()
+public String getPath() 
+public String getPort() 	// 忽略端口情况下返回-1
+public String getQuery()
+public String getUserInfo()
+# 解析相对URI
+public URI resolve(URI uri)  // 一个URI加上相对URI 
+public URI resolve(String url) 
+public URI relativize(URI uri) // 一个URI和另一个URI比较 得到相对的URI
+# 相等性和比较
+相等的URI必须
+1.都是层次或者不透明的
+2.比较模式和授权机构时不考虑大小写
+3.URI其余部分需要区别大小写
+4.转义字符在比较前不解码
+URI实现了Comparable，因此可以排序
+1.模式不同就比较模式，不考虑大小写
+2.模式相同则相同模式下，层次URI小于不透明URI
+3.都是不透明URI则按照模式特定部分比较
+4.再比较片段
+5.如果URI都是层次的，则更具授权机构部分排序。授权机构依次根据用户信息、主机和端口排序。主机不区别大小写
+6.如果模式和授权机构都相等，就使用路径来区分
+7.路径也相同则比较查询字符串
+8.最后比较片段
+# 字符串表示
+toString() // 未编码的字符串 不用百分号转义
+toASCIIString()  // 编码字符串 百分号转义
+# x-www-form-urlencoded
+URL使用的字符必须是ASCII的一个固定子集
+大写字母
+小写字母
+数字
+标点符号 -_.!~*'(和,)
+字符/&@?#;$+=和%也可以使用 但只用于特定的用途 
+除了指定的子集 其他所有字符都要转换为字节，每个字节要写为百分号加两个十六进制数字。空格是一种特殊情况，非常普遍，因此可以使用+编码。而+本身则被编码为%2B /#=&?字符作为分隔符时无需编码 其余时间需要编码
+URL类不自动编码或解码，需要使用Java提供的URLEncoder和URLDecoder来对URL字符串编解码
+# URLEncoder
+String encodedUrl = URLEncoder.encode(String unencodedUrl, String charset)
+此方法会对所有可以编码的字符进行编码，而不去判断如何使用。因此应该分部分进行编码，而不是一次性。
+# URLDecoder
+String decode(String s, String charset)
+# 代理
+发送请求先到代理再转发到真正目的地 收到请求先到代理再转发到用户 可能出于安全考虑 可能出于过滤请求考虑等
+基于URL的Java程序可以使用大多数常见的代理服务器和协议。
+# 系统属性
+对于基本操作，需要设置一些系统属性，指示本地代理服务器的地址。 System.setProperty()或 -D<property>=<value>
+http.proxyHost
+http.porxyPort
+如果特定主机访问不需要代理
+http.nonProxyHosts // 不同主机之间用|分隔
+FTP:
+ftp:proxyHost
+ftp:proxyPort
+ftp:nonProxyHosts
+Sockets
+socketProxyHost
+socketProxyPort
+# Proxy类
+允许Java程序中对代理服务器进行更细粒度的控制
+允许为不同的远程主机指定不同的代理服务器。
+java.net.Proxy
+支持3种代理
+Proxy.Type.DIRECT // 直连 不适用代理
+Proxy.Type.HTTP // HTTP代理
+Proxy.Type.SOCKET // Socket代理
+# ProxySelector类
+用于确定不同连接的代理服务器
+默认只检查系统属性和协议来决定如何连接到不同主机 可以安装自己的ProxySelector来代替默认的选择器
+关键是
+public abstract List<Proxy> select(URI uri)
+public void connectFailed(URI uri, SocketAddress address, IOException ex)
+# 通过GET与服务器端程序通信
+new URL(<encoded_url>)
+然后获取InputStream或URLConnection或contents都可以
+## 访问口令保护的网站
+标准HTTP认证保护的网站比较容易 也可以访问由Cookie保护的网站
+java.net.Authenticator类
+这是一个抽象类，必须派生子类，不同子类采用不同的方式获取信息。
+使用Authenticator.setDefault()设置认证类
+子类必须覆盖getPasswordAuthentication()方法
+五次重试机会 然后抛出异常
+# PasswordAuthentication类
+非常简单的final类，支持两个只读属性，用户名和口令。用户名是一个string，口令是一个char数组。
+public PasswordAuthentication(String userName, char[] password)
+
+### HTTP
+## HTTP协议
+HTTP是Web浏览器和web服务器之间通信的标准协议。HTTP指定客户端与服务器如果建立连接、客户端如何从服务器请求数据，服务器如何响应请求，以及最后如何关闭连接。HTTP连接使用TCP/IP来传输数据，对于从客户端到服务器的每一个请求，都4个步骤
+1.默认情况下，客户端在端口80打开与服务器的一个TCP连接，URL中还可以指定其他端口
+2.客户端向服务器发送消息，请求指定路径上的资源。请求包括一个首部，可选地（取决于请求的性质）还可以有一个空行，后面是这个请求的数据。
+3.服务器向客户端发送响应，响应以响应码开头，后面是包含元数据的的首部，一个空行以及请求的文档或错误信息
+4.服务器关闭连接
+上面是HTTP1.0过程
+HTTP1.1之后，可以通过一次TCP连接连续发送多次请求和响应。
+第一行为请求航，包括一个方法、资源以及HTTP的版本。方法指定所请求的操作(GET/POST等)
+接着是首部，采用格式key: value
+关键字不区分大小写，如果值太长可以在下一行最前面加一个空格或制表符接续上一行
+首部的行以一个回车换行结束
+首部以一个空行结束
+服务器在接受完成后返回响应，以状态行开始，然后是首部，也是key:vale的格式，然后是空行，最后是资源
+状态行 先是HTTP的版本 然后是响应码 然是是响应状态
+# Keep-Alive
+HTTP1.1之后 服务器不必在发送响应后就关闭连接，可以保持连接打开。在同一个Socket上等待来自客户端的新请求。
+Connection: Keep-Alive
+除非显式关闭，则连接到同一个服务器，会重用socket
+Java使用HTTP Keep-alive
+1.设置http.keepAlive true或false
+2.设置http.maxConnections希望打卡的socket数 默认5
+3.http.keeyAlive.remainingData true在丢弃连接前清理 Java6之后的版本 默认false
+4.sun.net.http.errorstream.enableBuffering true 
+5.sun.net.http.errorstream.bufferSize 缓冲错误流使用的字节数
+*
+未看完
+*
+# HTTP方法
+与服务器的通信遵循请求-响应模式,先是一个无状态的请求，后面是一个无状态的响应,每个HTTP请求包括两个或三个部分
+1.起始行 包含HTTP方法和要执行这个方法的资源的路径
+2.一个包含名-值字段的首部 可以提供元信息，如认证凭证和请求中首选使用的格式
+3.一个请求主体，包含资源的一个表示
+主要有4个HTTP方法
+GET
+POST
+PUT
+DELETE
+应用程序应该遵循语义，GET方法可以获取一个资源的表示，没有副作用，如果失败也可以重复执行GET。GET的输出通常会缓存。
+PUT将资源上传到URL的服务器
+DELETE删除资源
+POST方法是最通用的方法，将资源的一个表示上传到已知的URL服务器。但是没有指定服务器如何处理这个新提供的资源。POST要用于不能重复的不安全操作。
+由于GET请求在URL中包括了所有必要的信息，所以可以对GET请求加书签，或者进行链接和搜索等。
+不完成提交的所有安全操作都应当使用GET而不是POST，只有真正提交的操作才应当使用POST
+# 请求主体
+1.起始行 方法、路径和查询字符串，以及HTTP版本
+2.HTTP首部
+3.空行
+4.主体
+HTTP首部要包括两个字段来指定主体的性质
+1.Content-length字段，指定主体中有多少字节
+2.Content-type字段，指定类型MIME媒体类型
+# Cookie
+cookie在请求和响应的HTTP首部，服务器用cookie来指示会话ID等 也可能是无意义字符串 
+只要服务器不重用cookie，就会让它在多个HTTP连接上跟踪各个用户和会话
+Cookie的作用域还收到路径限制。path 指定子路径 domain 指定域名
+有过期时间 expire 指定过期时间 maxAge 指定存活时间
+# CookieManager
+java5 java.net.CookieHandler 定义存储和获取cookie的一个API 但不包括这个抽象类的实现 java6进行补充，增加了一个可以使用的具体类java.net.CookieManager 默认情况cookie并不打开，在Java存储和返回之前，需要先开启
+CookieManager manager = new CookieManager();
+CookieHandler.setDefault(manager);
+接受Cookie的来源使用CookiePolicy
+CookiePolicy.ACCEPT_ALL 接受所有
+CookiePolicy.ACCEPT_NONE 所有不接受
+CookiePolicy.ACCEPT_ORIGINAL_SERVER 只接受第一方cookie
+更细粒度的控制则覆盖CookiePolicy的
+public boolean shouldAccept(URI uri, HttpCookie cookie)
+# CookieStore
+有时需要在本地存放和获取Cookie，用getCookieStore()方法来获取这个cookie库，CookieStore保存
+CookieStore store = manager.getCookieStore()
+允许增加、删除和列出cookie，能控制在正常HTTP请求和响应流外发送的cookie
+
+
+### URLConnection
+抽象类，表示指向URL指定资源的活动连接。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
