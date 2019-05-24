@@ -688,22 +688,317 @@ CookieStore store = manager.getCookieStore()
 
 
 ### URLConnection
-抽象类，表示指向URL指定资源的活动连接。
+抽象类，表示指向URL指定资源的活动连接。URLConnection有两个不同但有关的用途。首先，与URL类相比，对服务器（特别是HTTP服务器）的交互提供了更多的控制。URLConnection可以检查服务器发送的首部，并相应地做出响应。可以设置客户端请求中使用的首部字段。最后，URLConnection可以用POST、PUT和其他HTTP请求方法向服务器发回数据。
+其次，URLConnection类是Java的协议处理器机制的一部分，这个机制还包括URLStreamHandler类，协议处理器的思想很简单：将处理协议的细节与处理特定数据类型分开，提供相应的用户接口，并完成整个Web浏览器锁完成的其他操作。
+java.net包中只有抽象URLConnection类，具体子类都隐藏在sun.net包中。URLConnection的许多方法和字段以及一个构造函数都是保护的。只能由URLConnection类或其子类的实例访问。很少会在源代码中直接实例化一个URLConnection对象。
+## 打开URLConnection
+1.构造一个URL对象
+2.调用这个URL对象的openConnection()获取一个对应该URL的URLConnection对象
+3.配置URLConnection
+4.读取首部字段
+5.获得输入流并读取数据
+6.获得输出流并读取数据
+7.关闭连接
+只有一个方法未实现 connect方法，建立与服务器的连接，因而依赖于服务类型（HTTP、FTP等）。
+## 读取服务器数据
+1.构造URL对象
+2.调用URL对象的openConnection()方法，获取对应该URL的URLConnection对象
+3.调用getInputStream()
+4.使用通常的流API读取输入流
+URL和URLConnection的区别
+1.URLConnection提供了对HTTP首部的访问
+2.URLConnection可以配置发送给服务器的请求参数
+3.URLConnection除了可以读取之外，还可以向服务器写入数据
+## 读取首部
+编写自己的URLConnection子类时，必须覆盖这些方法，才能返回有意义的值
+## 获取指定的首部字段
+特定的常用字段
+1.Content-type
+public String getContentType()
+返回响应主体的MIME类型，依赖于Web服务器发送一个有效的内容类型，如果没有不会抛出异常而是返回null。
+常见text/html text/plain image/gif application/json
+如果内容类型是某种形式的文本，首部还可能包含一个字符集部分，标识文档的字符编码方法。
+Content-type: text/html; charset= UTF-8
+此情况下，返回Content-type字段的完整值，包括字符编码方式。如果没有指定则默认是ISO-8859-1。如果遇到非文本类型则会抛出一个异常。
+2.Content-length
+public int getContentLength()
+告知内容中有多少字节，没有则返回-1，不抛出异常。如果需要准确知道要读取的字节数，或者预创建缓冲区来保存数据，可以使用
+Java7添加了getContentLengthLong()方法。
+3.Content-encoding
+public String getContentEncoding()
+内容是如何编码的。发送内容没有编码就返回null。比较常用的可能是x-gzip使用GZipInputStream解码
+4.Date
+public long getDate()
+返回一个long，指出资源发送的时间戳。 没有包含Date字段则返回0
+5.Expiration
+public long Expiration
+基于服务器的过期时间，指示应当何时从缓存中删除文档，并从服务器重新下载 没有包含则返回0 不表示永不过期
+6.LastModified
+public long getLastModified()
+返回文档最后修改日期。没有返回0
+## 获取任意首部字段
+public String getHeaderField(Strigg name) // 获取指定名称的首部字段的值
+public String getHeaderFieldKey(int n) // 获取第n个首部字段的键
+public String getHeaderField(int n) // 获取第n个首部字段的值
+public long getHeaderFieldDate(String name, long default) // 首先获得首部字段的值 再尝试转换为一个long
+public int getHeaderFieldInt(String name, int default) // 转换为int
+## 缓存
+一般认为使用GET通过HTTP访问的页面可以缓存也应当缓存。其他的则不应该缓存
+Cache-control （HTTP1.1）提供了细粒度的缓存策略
+1.max-age=[seconds]			从现在到缓存项过期的秒数
+2.s-maxage=[seconds]		从现在到缓存项在共享缓存中过期之前的秒数 私有缓存可以缓存更长时间
+3.public 					可以缓存一个经过认证的想要
+4.private					仅单个用户缓存可以保存响应
+5.no-cache					缓存项仍然可以缓存，不过客户端在每次访问时都要用一个Etag或Last-modified首部重新验证响应装填
+6.no-store					不管怎么样都不缓存
+## Java中的Web缓存
+默认并不缓存 使用缓存需要
+ResponseCache的一个具体子类
+CacheRequest的一个具体子类
+CacheResponse的一个具体子类
+ResponseCache.setDefault来设置ResponseCache。
+ResponseCache提供了两个抽象方法 可以存储和获取系统缓存中的数据
+public abstract CacheResponse get(URI uri, String requestMethod, Map<String, List<String>> requestHeaders)
+public abstract CacheRequst put(URI uri, URLConnection connection)
+put()方法返回一个CacheRequest对象，包装了一个OutputStream，把读取的可缓存数据写入这个输出流
+CacheRequest包含两个方法
+public abstract OutputStream getBody()  	// 指向缓存的数据库，协议处理器将读取的数据复制到这个Outpustream中
+public abstract void abort() 				// 如果复制失败，协议处理器将调用abort()方法，应当从缓存删除这个请求存储的所有数据
+get()方法从缓存中获取数据和首部，包装在CacheResponse对象中返回。如果不存在返回null，然后正常从远程服务器加载URI。
+public abstract Map<String, List<String>> getHeaders()
+public abstract InputStream getBody()
+## 配置连接
+URLConnection中有7个保护的实例字段 定义了客户端如何向服务器做出请求
+protected URL url
+protected boolean doInput = ture
+protected boolean doOutput = true
+protected boolean allowUserInteraction = defaultAllowUserInteraction
+protected boolean useCaches = defaultUseCaches
+protected long ifModifiedSince = 0
+protected boolean connected = false
+只能使用相应的设置和获取放来来访问和修改
+只能在URLConnection连接之前修改（试图读取内容或首部之前）
+1.protected URL url
+指定了这个URLConnection连接的URL，在创建URLConnection时设置这个字段 之后不能改变。
+2.protected boolean connected
+如果连接打开 true 否则false。
+任何导致连接的方法都将这个变量设置为true，包括connect()、getIn/OutputStream()，任何断开连接的方法都将置为false。
+自定义派生子类需要自行维护这个boolean变量
+3.protected boolean allowUserInteraction
+需要需要与用户交互 默认false
+只能在URLConnection连接之前修改
+4.protected boolean doInput
+默认true 是否可用于读取
+只能在链接之前修改
+5.protected boolean doOutput
+默认false  是否可用于写入
+只能在连接前设置
+6.protected boolean ifModifiedSince
+是否想服务器发送本地缓存的时间作为请求的首部字段
+If-Modified-Since
+如果修改则服务器返回新的文档 否则不返回
+7.protected boolean useCaches
+是否可以使用缓存 默认true
+## 超时
+有4个方法可以查询和修改连接的超时值。
+public void setConnectTimeout(int timeout)
+public int getConnectTimetout()
+public void setReadTimeout(int timeout)
+public void getReadTimeout()
+前两个控制socket等待建立连接的时间 后两个则控制输入流等到数据到达的时间
+## 配置客户端请求HTTP首部
+每个URLConnection会在首部默认设置一些不同的名-值对。
+在打开连接前，可以使用
+public void setRequestProperty(String name, String value)
+为HTTP首部修改或增加新的字段
+HTTP允许为一个指定名字的属性设置多个值，这种情况下，各个值用逗号隔开。
+public void addRequestProperty(String name, String value) // 为字段增加一个新值 而不是覆盖
+public String getRequestProperty(String name)
+public Map<String, List<String>> getRequestProperties()
+## 向服务器写入数据
+public OutputStream getOutputStream()
+由于URLConnection在默认情况下不允许输出，所以需要在请求输出流之前设置setOutput(true)。请求方法将从GET变为POST。
+## URLConnection的安全考虑
+public Permission getPermission()
+指出连接URL所需的权限。如果不需要返回null，需要则返回不同子类
+## 猜测MIME媒体类型
+public static String guessContentTypeFromName(String name)
+public static String guessContentTypeFromStream(Inpustream in)
+## HttpURLConnection
+java.net.HttpURLConnection类是URLConnection的抽象子类。提供了另外一些方法，在处理httpURL时尤为有效。包含的方法可以获得和设置请求方法，确定是否重定向，获得响应码和消息，以及确定是否使用了代理服务器。是抽象类，不能直接创建实例
+在使用http URL openConnection时，返回的URLConnection是HttpURLConnection，可以强制转型。
+## 请求方法
+public void setRequestMethod(String method)
+参数可选 GET POST PUT DELETE HEAD OPTIONS TRACE
+1.HEAD
+值返回响应首部
+2.DELETE
+删除指定资源 由于存在安全风险 不是所有服务器都支持 通常需要身份验证
+3.PUT
+希望存储文件，通常需要身份验证
+4.OPTIONS
+询问URL支持哪些选项
+返回的HTTP首部的Allow字段
+5.TRACE
+查看服务器和客户端之间的代理服务器做了哪些修改
+## 断开与服务器的连接
+public abstract void disconnet()
+## 处理服务器响应
+public int getResponseCode()
+返回响应码
+public String getResponseMessage()
+返回响应信息
+# 错误条件
+public InputStream getErrorStream()
+返回错误的输入流
+# 重定向
+public static boolean getFollowRedirects()
+public static void setFollowRedirects(boolean follow)
+默认情况下,HttpURLConnection会跟随重定向。
+# 代理
+public abstract Boolean usingProxy()
+# 流模式
+每个发送给HTTP服务器的请求都有一个HTTP首部，有一个Content-length字段，即请求主题中的字节数。
+如果知道数据大小，可以将大小告诉HttpURLConnection对象。预先不知道则可以使用分块传输编码方式，请求主题以多个部分发送，每个部分都有自己单独的内容长度
+public void setChunkedStreamingMode(int chunkLength) // 设置分块大小
+如果预先知道请求数据大小，可以告诉HttpURLConnection对象，从而优化连接。
+public void setFixedLengthStreamingMode(int contentLength)
+public void setFixedLengthStreamingMode(long contentLength)
+Java会在HTTP首部使用这个数，接下来写入的数据大于或小于这个数都将抛出异常。
+
+### 客户端Socket
+## 使用Socket
+1.连接远程主机
+2.发送数据
+3.接受数据
+4.关闭连接
+5.绑定端口
+6.监听入站数据
+7.在绑定端口上接收来自远程机器的连接
+Java的Socket类提供了对应前4个操作的方法，后面3个仅服务器使用，即等待客户端连接。这些操作有ServerSocket类实现。Java程序通常采用以下方式使用客户端Socket
+1.用构造函数创建一个新的Socket
+2.Socket尝试连接远程主机
+一旦建立了连接，本地和远程主机就从这个Socket中得到输入流和输出流，使用流发送数据。
+## 用Telnet研究协议
+## 用Socket从服务器读取
+Socket socket = new Socket(<host>, <port>)
+socket.getInputStream()
+## 用Socket写入服务器
+向Socket请求一个输出流以及一个输入流。使用输出流在socket上发送数据，使用输入流在socket上读取数据。
+## 半关闭Socket
+close()方法同时关闭socket的输入流和输出流，只想关闭其中一个使用shutdownInput()和shutdownOutput()
+这并不关闭socket，会调整与Socket连接的流，使他认为已经到了流的末尾，关闭输入之后再读取将返回-1，输出则抛出异常
+即使关闭了输出和输入流 也需要手动调用socket.close()关闭 shutdown方法只影响socket的流，并不释放与socket关联的资源。
+isInputShutdown()和isOutputShutdown()方法分别指出输入流和输出流是打开的还是关闭的。
+## 构造和连接Socket
+# 基本构造函数
+public Socket(String host, int port)
+public SOcket(InetAddress host, int port)
+尝试连接socket，失败则抛出异常。
+这两个构造方法创建连接的socket，以下则是创建未连接的socket
+public Socket()
+public Socket(Proxy proxy)
+protected Socket(SocketImpl impl)
+# 选择从哪个本地接口连接
+public Socket(String host, int port, InetAddress interface, int localPort)
+public Socket(InetAddress host, int port, InetAddress interface, int localPort)
+前两个参数指定服务器的主机和端口，后两个指定本地网络的接口和端口 本地端口传入0则会选择1024到65535之间的一个可用端口
+# 构造但不链接
+new Socket()
+此时socket并不连接
+再使用connet()方法连接
+public void connect(SocketAddress endpoint, int timeout)
+# Socekt地址
+SocketAddress类表示一个连接端点，空的抽象类。实际使用的Socket地址都是InetSocketAddress的实例
+主要用途是为暂时的socket连接信息提供方便的存储，即使socket断开被垃圾回收，这些信息也可以重用。
+public SocketAddress getRemoteSocketAddress() // 连接到的系统的地址
+public SocketAddress getLocalSocketAddress() // 发起连接的系统的地址
+InetSocketAddress是SocketAddress的子类
+public InetSocketAddress(InetAddress address, int port)
+public InetSocketAddress(String host, int port)
+public InetSocketAddress(int port)
+# 代理服务器
+
+# 获取Socket的信息
+1.远程地址 getInetAddress()
+2.远程端口 getPort()
+3.本地地址 getLocalAddress()
+4.本地端口 getLocalPort()
+远程端口一般是选定的，而本地端口则是从空闲端口随机选择的。
+# 关闭还是连接
+isClose()	// 是否关闭
+isConnected // 是否从未连接过远程主机 可以连接包括已经连接过的就返回true
+isBound()	// 是否成功绑定到本地系统上的出栈端口
+# toString()
+# 设置Socket选项
+支持9个选项
+1.TCP_NODELAY
+public void setTcpNoDelay(boolean on)
+public boolean getTcpNoDelay()
+true时会确保包尽可能快速发送，无论包的大小。小数据包在发送前会组合为更大的包。在发送另一个包前，本地主机等待远程系统对前一个包的确认。
+true时关闭缓冲，一旦包就绪就发送
+2.SO_BINDADDR
+Socket关闭可能不会立即释放本地端口。会等待一段时间，确保接受到所有要发送到这个端口的延迟数据包。不会做任何处理，只是希望确保这些数据不会意外传入绑定到同一端口的新进程。
+这可能阻止新进程绑定到这个端口，如果开启SO_REUSEADDR(默认关闭)，就允许另一个Socket绑定到这个端口，即使此时仍然可能存在前一个Socket未接受的数据
+public void setReuseAddress(boolean on)
+public void getReuseAddress()
+3.SO_TIMEOUT
+public void setSoTimeout(int milliseconds)
+正常情况下，尝试从Socket读取数据时，read()调用会阻塞尽可能长的时间来得到足够的字节数，设置参数确保阻塞时间不会超过固定的毫秒数。
+public int getSoTimeout()
+4.SO_LINGER
+public void setSoLinger(boolean on, in seconds)
+指定Socket关闭时如何处理尚未发送的数据报 默认情况下close()方法将立即返回，但系统仍会尝试发送剩余的数据。如果延迟时间设置为0，那么当关闭时，所有未发送的数据包将被丢弃。如果打开并设置延迟时间则close()方法会阻塞，等待发送数据和接收确认。
+最大时间为65535秒
+public int getSoLinger()
+5.SO_SNDBUF
+TCP使用缓冲区提升网络性能，较大的缓冲区会提升快速连接的性能。一般而言，传输连续的大数据块时，可以从大缓冲区中收益，而对于交互式会话的小数据量传输（如telnet和很多游戏），大缓冲区则没有多大帮助。
+想要得到最大带宽，将缓冲区大小与连接的延迟匹配，使其稍小于网络的带宽。
+public void setReceiveBufferSize(int size)
+public int getReceiveBufferSize(
+public void setSendBufferSize(int size)
+public int getSendBufferSize()
+尽管看起来可以独立设置发送或接受缓冲区，但实际上缓冲区通常会设置为两者中较小的一个。
+如果没有必要，不用设置
+6.SO_REVBUF
+7.SO_KEEPALIVE
+如果开启SO_KEEPALIVE，偶尔会通过一个空闲连接发送一个数据包，以确保服务器未崩溃。如果没有SO_KEEPALIVE，不活动的客户端可能会永远存在下去。
+public void setKeepAlive(boolean on)
+public boolean getKeepAlive() 
+默认false
+8.OOBINLINE
+TCP包括一个可以发送单字节带外紧急数据的特性。这个数据立即发送，接收方优先处理这个数据
+public void sendUrgentData(int data)
+默认情况下Java会忽略从Socket接受的紧急数据，如果需要接受则
+public void setOOBInline(boolean on)
+public void getOOBInline()
+9.IP_TOS
+不同类型的Internet服务有不同的性能需求。服务类型存储在IP首部的一个名为IP_TOS的8位字段中，Java允许使用下面方法检查和设置Socket放在这个字段中的值
+public int getTrafficClass()
+public void setTrafficeClass(int trafficeClass)
+业务流程以0-255之间的int给出。由于这个值要复制到TCP首部的一个8位字段中，因此使用int的低字节。
+
+## Socket异常
+大多数方法都声明抛出IOException或其子类java.net.SocketException
+BindException 
+ConnectException
+NoRouteToHostException
+ProtocolException
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+### 服务器Socket
+## 使用ServerSocket
+包含了Java编写服务器所需的全部内容 包括创建新ServerSocket对象的构造函数，在指定端口监听连接的方法、配置各个服务器Socket选项的方法。
+服务器程序的基本生命周期
+1.使用ServerSocket构造函数在一个特定端口创建一个新的ServerSocket
+2.ServerSocket使用accept()方法监听这个端口的入站连接。accept()会一直阻塞知道客户端尝试连接，accept将返回一个连接客户端和服务器的Socket对象
+3.根据服务的类型，会调用Socket的getInputStream()方法或getOutputStream()方法，或者两者都调用，以获得与客户端通信的输入和输出流
+4.服务器和客户端根据以协商的协议交互，直到要关闭连接
+5.服务器或客户端（或二者）关闭连接
+6.返回步骤2，等待下次连接
+## 提供二进制数据
+使用InputStream而不是Writer
+## 多线程服务器
 
 
 

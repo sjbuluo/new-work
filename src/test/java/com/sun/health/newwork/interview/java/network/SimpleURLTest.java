@@ -3,9 +3,7 @@ package com.sun.health.newwork.interview.java.network;
 import org.junit.Test;
 
 import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
+import java.net.*;
 import java.util.List;
 import java.util.Map;
 
@@ -119,6 +117,15 @@ public class SimpleURLTest {
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }
+    }
+
+    @Test
+    public void test7() throws UnknownHostException {
+//        Authenticator.setDefault();
+//        CookieHandler.setDefault();
+//        ResponseCache.setDefault();
+        InetAddress byName = InetAddress.getByName("baidu.com");
+//        byName.
     }
 
 }
