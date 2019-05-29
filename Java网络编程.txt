@@ -1001,8 +1001,38 @@ ProtocolException
 ## 多线程服务器
 
 
-
-
+## Socket选项
+# SO_TIME
+是accept()在抛出java.io.InterruptedException异常前等待入站连接的时间，以毫秒计。如果为0则表示永不超时，默认永不超时。
+很少会直接设置SO_TIMEOUT，如果要实现一个复杂的安全协议，客户端和服务器之间需要有多个连接，响应会在一定的时间内出现，这种情况下可能会需要这个选项。
+public void setSoTimeout(int timeout)
+public int getSoTimeout()
+# SO_REUSEADDR
+是否允许新的Socket绑定到之前使用过的一个端口，可能还有数据发送到原Socket。
+public boolean getReuseAddr()
+public void setReuseAddr(boolean on)
+默认值依赖于具体平台。
+# SO_RCVBUF
+设置了服务器Socket接受的客户端默认接收缓冲区大小。
+public void setReceiveBufferSize(int size)
+public int getReceiveBufferSize()
+Socekt在接受之后不能修改缓冲区大小。
+# 服务类型
+不同的Internet服务类型有不同的性能需求。
+为TCP定义了4个通用业务流类型
+1.低成本
+2.高可靠性
+3.最大吞吐量
+4.最小延迟
+对于服务器所接受的Socket，setPerformancePreferences()方法描述了为其连接时间、延迟和带宽给定的相对优先级
+public void setPerformancePreferences(int connectionTime, int latency, int bandwidth)
+connectionTime 代表 连接时间
+latency 最小延迟
+bandwidth 最大带宽
+数值越大 优先级越高
+具体实现依赖于底层Socket，很多（包括Andriod）会忽略这个提示。
+## HTTP服务器
+# 单文件服务器
 
 
 

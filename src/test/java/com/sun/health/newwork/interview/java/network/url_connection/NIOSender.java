@@ -1,5 +1,8 @@
 package com.sun.health.newwork.interview.java.network.url_connection;
 
+import org.junit.Test;
+
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -16,6 +19,29 @@ import java.util.concurrent.Executors;
  */
 public class NIOSender {
 
+    @Test
+    public void test1() {
+        SocketChannel socketChannel = null;
+        try {
+            socketChannel = SocketChannel.open();
+            socketChannel.connect(new InetSocketAddress(9362));
+            ByteBuffer wrap = ByteBuffer.wrap("Hello World".getBytes());
+            socketChannel.write(wrap);
+            wrap.compact();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (socketChannel != null) {
+                try {
+                    socketChannel.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+    }
+
     public static void main(String[] args) {
         final SocketChannel socketChannel;
         final Selector selector;
@@ -26,7 +52,6 @@ public class NIOSender {
             socketChannel = SocketChannel.open();
             selector = Selector.open();
             socketChannel.configureBlocking(false);
-            socketChannel.connect(new InetSocketAddress(9362));
             ByteBuffer allocate = ByteBuffer.allocate(32);
             selectionKey = socketChannel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ, allocate);
             executorService.submit(() -> {
@@ -36,7 +61,6 @@ public class NIOSender {
                     Iterator<SelectionKey> iterator = selectionKeys.iterator();
                     while (iterator.hasNext()) {
                         SelectionKey key = iterator.next();
-                        iterator.remove();
                         SocketChannel channel = (SocketChannel) key.channel();
                         ByteBuffer byteBuffer = (ByteBuffer) key.attachment();
                         if (key.isValid() && key.isConnectable()) {
@@ -47,30 +71,62 @@ public class NIOSender {
                         if (key.isValid() && key.isReadable()) {
                             int read = channel.read(byteBuffer);
                             if (read == -1) {
-                                System.out.println("没有数据");
+                                System.out.println("关闭连接");
+                                break;
                             } else {
                                 byte[] bytes = new byte[read];
                                 channel.read(byteBuffer);
+                                byteBuffer.flip();
                                 byteBuffer.get(bytes, 0, read);
                                 System.out.println(new String(bytes));
+                                byteBuffer.compact();
+                                byteBuffer.clear();
                             }
                         }
+                        iterator.remove();
                     }
                 }
             });
+            socketChannel.connect(new InetSocketAddress(9362));
             if (socketChannel.finishConnect()) {
                 String line = null;
                 scanner = new Scanner(System.in);
                 while (!"exit".equalsIgnoreCase(line)) {
                     line = scanner.nextLine();
                     ByteBuffer byteBuffer = ByteBuffer.wrap(line.getBytes());
-                    byteBuffer.flip();
+//                    byteBuffer.flip();
                     socketChannel.write(byteBuffer);
                     byteBuffer.compact();
                     byteBuffer.clear();
                 }
             }
+            if (selectionKey != null) {
+                selectionKey.cancel();
+            }
+            if (selector != null) {
+                try {
+                    selector.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (executorService != null) {
+                try {
+                    executorService.shutdownNow();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            if (socketChannel != null) {
+                try {
+                    socketChannel.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
 
         }
     }
