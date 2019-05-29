@@ -1254,3 +1254,229 @@ call
 
 
 
+### Laravel 
+************************** 5.8 ***********************
+## 配置Laravel
+# 初始化配置
+1.公共目录
+public目录下的index.php作为前端控制器（应用的唯一入口），所有HTTP请求都会通过该文件进入应用
+2.配置文件
+config目录下包含所有配置
+3.目录权限
+需要配置一些目录（如storage和boostrap/cache）的读写权限给Web服务器指定用户
+4.应用key
+需要先将.env.example复制一份作为.env,如果使用命令创建的应用已经包含则无需这两步操作
+php artisan key:generate生成应用key，用于保护用户Session和其他加密数据的安全性
+5.更多配置
+可以看看config/app.php文件，包含一些基于应用可能需要改变的配置，比如locate和timezone作为本地化
+# 环境配置
+基于应用运行环境不同设置不同的配置值能够给开发带来极大的方便，比如通常在本地和线上环境配置不同的缓存驱动。
+使用PHP扩展库DotEnv来实现这一功能。
+不要将.env提交到版本控制系统中，一方面不同环境不同配置，一方面.env文件包含有敏感信息，需要小心对待。
+可以将一些环境配置值以占位符的方式放在.env.example中，辅助其他开发者了解应用需要配置的环境变量
+可以通过创建.env.testing文件，在执行PHPUnit或带有--env=testing选项的Artisan命令时覆盖.env中的配置值
+.env文件所有变量都可以被外部环境变量覆盖，例如服务器级别或系统级别的环境变量
+.env文件中所有变量都会被解析为字符串 因此有一些保留值作为转换
+比如
+true(string) -> true(boolean)
+empty(string) -> ""(string)
+null(string) -> null(null)
+需要包含空格的字符串使用双引号包括整个字符串
+获取环境变量配置值
+env(<key>, <default>)
+判断应用环境
+App::environment()
+访问配置值
+config(<key>)
+缓存配置文件
+php artisan config:cache 将所有配置文件的配置缓存到单个文件中 从而被框架快速加载
+维护模式
+php artisan down
+## 目录结构
+# 简介
+可以自行组织目录结构，只要Composer可以自动载入即可
+# 根目录
+1.App目录
+包含应用的核心代码，不是框架的核心代码（框架的核心代码在/vendor/laravel/framework）里。为应用编写的绝大多数代码应该在这里。基于Composer做PHP组件开发的话，只有入口性的代码
+2.Bootstrap目录
+包含少量文件，app.php用于框架的启动和自动载入配置，还有一个cache文件夹，里面包含框架为提升性能所生成的文件，比如路由和服务缓存文件。
+3.Config目录
+包含了应用所有的配置文件。
+4.Database目录
+包含了数据库迁移文件以及填充文件，如果使用SQLite则可以作为SQLite数据库存放目录
+5.Public目录
+包含了应用入口文件index.php和前端资源文件，该目录也应该是Apache或Nginx等Web服务器所指向的应用根目录。优点在于隔离应用核心文件
+6.Resources目录
+resources目录包含了应用视图和未编译的原生前端资源文件（LESS、SASS、Javascript），以及本地化语言文件
+7.Routes目录
+包含了应用定义的所有路由，默认提供了四个路由文件用于不同的入口使用
+web.php
+包含的路由通过RouteServiceProvider引入，都被约束在web中间件组中，支持Session、CSRF保护以及Cookie加密功能，如果用于无需提供无状态的、RESTful风格的API，那么路由基本都要定义在web.php文件中
+api.php
+包含的路由通过RouteServiceProvider引入，都被约束在api中间件组中，支持频率限制功能，这些路由是无状态的，请求通过这些路由进入应用需要通过token进行验证并不能访问Session状态
+console.php
+用于定义所有基于闭包的控制台命令，每个闭包都被绑定到一个控制台命令并且允许与命令行IO方法进行交互，尽管文件并不定义HTTP路由，但定义了基于控制台的应用入口
+channels.php
+用于注册应用支持的所有时间广播频道
+8.Storage目录
+包含编译后的Blade模板，基于文件的Session、文件缓存，以及其他由框架生成的文件，细分为app、framework和logs子目录，app目录用于存放应用生成的文件，framework目录用于存放框架生成的文件和缓存，logs存放应用的日志文件
+storage/app/public目录用于存储用户生成的文件，比如可以被公开访问的用户头像，需要在应用根目录的public下生成一个软链接storage指向这个目录 php artisan storage:link
+9.Tests目录
+包含自动化测试文件，其中默认提供一个开箱即用的PHPUnit示例，每个测试类都要以Test开头，可以通过phpunit或php verdor/bin/phpunit命令来运行测试
+10.Vendor目录
+包含了应用所有通过Composer加载的依赖
+# App目录
+应用的核心代码位于app目录下，默认情况下，目录位于命名空间App下，并且被Composer通过PSR-4自动载入标准自动加载
+app目录下包含多个子目录 如Console、Http、Providers等。Console和Http目录提供了进入应用核心的API、HTTP协议和CLI是和应用进行交互的两种机制，但实际上并不包含逻辑。换句话说，只是向应用发送命令的方式，Console目录包含了所有编写的Artisan命令，Http目录包含了控制器、中间件和请求等。
+其他目录会在Artisan命令make生成相应类的时候自动生成到app目录下
+php artisan list make 查看所有artisan生成命令
+1.Broadcasting目录
+包含了应用所需的所有广播频道类，通过make:channel命令生成。默认不存在。
+2.Console目录
+包含所有自定义的Artisan命令，通过make:command命令生成。还有Console/Kernel类，可以注册自定义的Artisan命令以及定义调度任务。
+3.Events目录
+存放事件类，默认不存在。通过event:generate和make:event创建，事件类用于告知应用其他部分某个事件发生情况并提供灵活的、解耦的处理机制。
+4.Exceptions目录
+包含应用的异常处理器，同时还是处理应用抛出的任何异常的好地方，如果想要自定义异常如何记录和渲染，需要编辑该目录下的Handler类
+5.Http目录
+包含了控制器、中间件和表单请求等，几乎所有通过Web进入应用的请求处理都可以在此进行
+6.Jobs目录
+用于存放队列任务，应用中的任务可以被推送到队列，也可以在当前请求生命周期内同步执行。同步执行的任务有时也被看做命令，因为实现了命令模式。默认不存在,make:job创建
+7.Listeners目录
+包含处理事件的类（事件监听器），接受一个事件并提供对该事件发生后的响应逻辑。默认不存在 event:generate和make:listener创建
+8.Mail目录
+包含应用所有邮件相关类，可以封装构建邮件所需的所有业务逻辑 Mail::send发送 默认不存在make:mail创建
+9.Notifications目录
+包含应用发送的所有通知，比如事件发生通知，通知功能将通知发送和通知驱动解耦，默认不存在，make:notification命令
+10.Policies目录
+包含应用所有的授权策略类，策略用于判断某个用户是否有权限去访问指定资源 默认不存在 make:prolicy
+11.Providers目录
+包含应用的所有服务器提供者，在应用启动过程中绑定服务到容器、注册事件以及执行其他任务为即将到来的请求处理做好准备工作
+12.Rules目录
+包含应用的自定义校验规则对象，用于在单个对象中封装复杂的验证逻辑 默认不存在 make:rule
+
+### 核心
+## 请求的生命周期
+# 简介
+# 生命周期概览
+1.第一件事
+所有请求入口都是public/index.php文件，所有请求都会被web服务器(Apache/Nginx)导向这个文件。index.php文件包含的代码不多，但是，这是加载框架其他部分的起点。
+index.php文件载入Composer生成的自动加载设置，然后从bootstrap/app.php脚本获取Laravel应用实例，Laravel第一个动作就是创建服务容器实例
+2.HTTP/Console内核
+然后，请求被发送到HTTP内核或Console内核（分别用于处理Web请求和Artisan命令），取决于进入应用的请求类型。这两个内核是所有请求都要经过的中央处理器。
+app/Http/Kernel.php作为HTTP内核。继承自Illuminate\Foundation\Http\Kernel类，定义了一个bootstrappers数组，这个数组中的类在请求被执行前裕兴，配置错误处理、日志、检测应用环境以及其他在请求被处理前需要执行的任务
+HTTP内核还定义了一系列所有请求在处理前需要经过的HTTP中间件，这些中间件处理HTTP会话的读写、判断应用是否处理维护模式、验证CSRF令牌等等
+HTTP内核的handle方法签名相当简单，获取一个request，返回一个response，可以把内核想象坐一个代表整个应用的黑盒，输入HTTP请求，返回HTTP响应。
+3.服务提供者
+内核启动过程中最重要的动作之一就是为应用载入服务提供者，应用的所有服务提供者都被配置在config/app.php配置文件的providers数组中。首先，所有提供者的register方法被调用，被注册后，所有boot方法被调用
+服务提供者负责启动框架的所有各种各样的组件，比如数据库、队列、验证器以及路由组件等。
+4.分发请求
+一旦应用被启动并且所有服务提供者被注册，Request将会被交给路由器进行分发，路由器将会分发请求到路由或控制器，通过运行所有路由指定的中间件。
+# 聚集服务提供者
+服务提供者是启动Laravel应用中最关键的部分，应用实例被创建后，服务提供者被注册，请求被交给启动后的应用进行处理。
+应用默认的服务提供者存放在app/Providers目录下。
+默认AppServiceProvider是空的，这是添加自定义启动和服务容器绑定的最佳位置。
+## 服务容器
+# 简介
+服务容器是一个用于管理依赖和执行依赖注入的强大工具，依赖注入本质是通过构造函数或setter方法将类依赖注入到类中。
+# 绑定
+1.绑定基础
+几乎所有的服务容器都是在服务提供者中完成的
+如果一个类没有基于任何接口那么就没有必要将其绑定到容器，会根据PHP的反射服务自动解析出具体的对象
+2.简单的绑定
+服务提供者中，可以通过$this->app变量访问容器，然后使用bind方法注册一个绑定，该方法需要两个参数，第一个参数是想要注册的类名或接口名称，第二个蚕食是返回类的实例的闭包
+$this->app->bind(<>, function($app) {
+	return <>;
+}); 
+3.绑定一个单例
+使用singleton方法代替bind方法
+$this->app->bind(<>, function($app) {
+	return <>;
+});
+4.绑定实例
+intance方法 绑定一个已存在的对象实例到容器，随后调用容器将总是返回给定的实例
+$this->app->instance(<>, <>)
+5.绑定原始值
+可能有一个接收注入类的类，同时需要注入一个原生的数值比如整数，可以结合上下文轻松注入这个类需要的任何值
+$this->app->when('<>')->needs('$variableName')->give($value);
+6.绑定接口到实现
+服务容器的一个非常强大的功能就是其绑定接口到实现，比如一个EventPusher接口以及其实现类RedisEventPusher，可以将这个实现类注册到容器上。
+$this->app->bind('EventPusher', 'RedisEventPusher')
+告诉容器当一个类需要EventPusher的实现时将注入RedisEventPusher，可以在构造器或者任何其他通过服务容器注入依赖的地方进行EventPusher接口的依赖注入
+7.上下文绑定
+可能有两个类使用同一个接口，希望不同类注入不同实现。
+$this->app->when(PhotoController::class)->needs(Filesystem::class)->give(function () {
+	return Storage::disk('local');
+});
+$this->app->when(VideoController::class)->needs(Filesystem::class)->give(function () {
+	return Storage::disk('s3');
+});
+8.标签
+少数情况下，需要解析特定分类下的所有绑定，在注册完之后，通过tag方法分配标签
+$this->app->bind('p1', function() {
+	return <>;
+});
+$this->app->bind('p2', function() {
+	return <>;
+});
+$this->app->tag(['p1', 'p2'], 't1');
+通过tagged方法解析标签绑定
+$app->tagged('t1');
+9.扩展绑定
+extend方法允许对解析服务进行修改，extend方法接受一个闭包来返回修改后的服务
+$this->app->extend(Service::class, function($service) {
+	return new NewService($service);
+});
+# 解析
+1.make方法
+有很多方法可以从容器中解析对象，首先，make方法，接受想要解析的类名或接口名作为参数
+$xxx = $this->app->make('<interface or class>')
+如果所在代码位置访问不了$app变量，可以使用辅助函数resolve
+$api = resolve('<>');
+某些类的依赖不能通过容器来解析，可以通过关联数组方式将其传递到makeWith方法来注入
+$api = $this->app->makeWith('<>', [key => value])
+2.自动注入
+最常用的通过在类的构造函数中对依赖进行类型提示来从容器中解析对象，控制器、事件监听器、队列任务、中间件等都是通过这种方式。
+容器会自动为其解析类注入依赖。
+# 容器事件
+服务容器在每一次解析对象时都会触发一个事件，可以用resolving方法监听该事件。
+$this->app->resolving(function($object, $app) {
+	// 所有容器事件处理代码
+});
+$this->app->resolving(xxx::class, function($object, $app) {
+	// 指定类的容器事件处理代码
+});
+# PSR-11
+服务容器实现了PSR-11接口，可以通过类型提示PSR-11容器接口来获取Laravel容器的实例；
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
