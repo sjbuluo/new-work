@@ -7703,6 +7703,7 @@ test命令也可以简写为[]用法为
 -p filename 是否存在并且是否是管道文件
 -s filename 是否存在并且是否为空
 -S filename 是否存在并且是否是套接字文件
+-h filename 如果文件是软链接，则为真
 文件权限判断
 -r filename 是否存在并且是否拥有可读权限
 -w filename 是否存在并且是否拥有可写权限
