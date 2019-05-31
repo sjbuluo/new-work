@@ -1450,12 +1450,835 @@ $this->app->resolving(xxx::class, function($object, $app) {
 服务容器实现了PSR-11接口，可以通过类型提示PSR-11容器接口来获取Laravel容器的实例；
 
 
+## 服务提供者
+# 简介
+是Laravel应用启动的中心，核心服务都是通过服务提供者启动。
+这里的启动包括注册服务，注册服务容器绑定，事件监听器，中间件，路由
+自带的config/app.php的providers数组中是应用所要加载的所有服务提供者类，启动很多是延迟脚在的，不会每次请求都加载，只有真正需要时加载
+# 编写服务提供者
+所有服务提供者都继承自Illuminate\Support\ServiceProvider类，大部分服务提供者都包含两个方法，register和boot。register方法中，唯一要做的就是绑定服务到容器，不要尝试在这个方法中注册事件监听器，路由或其他任何功能。
+php artisan make:provider XXXServiceProvider // 生成服务提供者
+1.register方法
+此方法应该只用于绑定服务到服务容器。
+2.bindings和singletons属性
+如果服务提供者注册了很多简单的绑定，可以使用bindings和singletons属性代替手动注册方法以简化代码
+public $bindlings = [
+	XXX::class => XXXImpl::class
+]
+public $singletons = [
+	XXX::class => XXXImpl:class
+]
+3.boot方法
+在服务提供者中注册视图Composer，需要使用boot方法。此方法在所有服务提供者被注册以后才会被调用
+# 注册服务提供者
+所有服务提供者都是通过配置文件config/app.php中进行注册，包含列出所有服务提供者名字的providers数组。默认只列出所有核心服务提供者。
+要注册自定义的服务提供者，需要将其追加到该数组中
+'provirder' => [
+	XXXServiceProvider
+]
+# 延迟加载服务提供者
+如果自定义的服务提供者中只注册绑定，可以选择延迟加载该绑定的服务。
+Laravel编译并保存所有延迟服务提供者的服务和类名。
+想要延迟加载提供者，需要实现\Illuminate\Contracts\Supports\DeferrableProvider接口并定义一个provides方法，会返回通过服务提供者注册的服务容器绑定
+class XXXSerivce extends ServiceProvider implements DeferrableProvider {
+
+	public void provides() {
+		return [
+			XXX::class
+		]
+	}
+}
+
+## 门面(Facades)
+# 简介
+门面为应用服务容器中的绑定类提供了一个静态接口，内置了很多门面。门面作为服务容器中底层类的静态代理，在维护是能够提供更加易于测试、灵活、优雅的语法
+所有门面定义在Illuminate\Support\Facades命名空间下
+外观模式(门面模式)
+隐藏系统的复杂性，并向客户端提供了可以访问系统的接口。属于结构性模式。为子系统中的一组接口提供了一个统一的访问接口，这个接口使得子系统更容易被访问或使用
+比如
+class CPU {
+	public boot() {
+	
+	}
+	public shutdown() {
+	
+	}
+}
+class Memory {
+	public boot() {
+	
+	}
+	public shutdown() {
+	
+	}
+}
+class Disk {
+	public boot() {
+	
+	}
+	public shutdown() {
+	
+	}
+}
+class Computer {
+	public __construct(CPU $cpu, Memory $memory, Disk $disk) {
+		$this->cpu = $cpu;
+		$this->memory = $memory;
+		$this->disk = $disk;
+	}
+	
+	public boot() {
+		echo '开始启动';
+		$this->cpu->boot();
+		$this->meomry->boot();
+		$this->disk->boot();
+		echo '启动完成';
+	}
+	public shutdown() {
+		echo '关机开始';
+		$this->cpu->shutdown();
+		$this->memory->shutdown();
+		$this->disk->shutdown();
+		echo '关机结束';
+	}
+}
+将CPU，memory，disk的接口集成至computer中，对外隐藏了子系统的接口，只需要调用Computer对外接口即可。
+# 何时使用门面
+门面有需要注意的地方，最主要的危险是类范围蠕变，由于门面好用且无需注入。在单个类中使用过多门面，会导致类越来越大。使用依赖注入则会让此类问题缓解。
+1.门面 vs 依赖注入
+2.门面 vs 辅助函数
+# 门面工作原理
+Laravel中，门面就是一个为容器中对象提供访问方式的类，该机制原理由Facade类实现。
+门面类只需要实现一个方法 getFacadeAccessor，定义了从容器中解析什么，然后使用魔术方法__callStatic()从门面中调用解析对象
+# 实时门面
+使用实时门面，可以将应用中任意类当做门面来使用。
+<class implements Facades>::<method_name>()
+使用Facade接口的实现类作为前缀即可引入依赖，无需在方法参数列表中显式导入Facade实例
+
+## 契约
+是指框架提供的一系列定义核心服务的接口。
+每个契约都有框架提供的相应实现。
+所有Laravel契约都有其对应的GitHub库，为所有有效的契约提供了快速入门指南，同时也可以作为独立、解耦的包被包开发者使用
+# 契约 vs 门面
+门面为Laravel服务的使用提供了便携方式--无需从服务容器中类型提示和契约解析即可直接通过静态门面调用
+不同于门面无需在构造器中进行类型提示，契约允许在类中定义显式的依赖。
+# 何时使用契约
+大多数情况下使用契约或者门面取决于个人或团队喜好。
 
 
+### 基础组件
+## 路由
+# 路由入门
+最基本的Laravel路由只接收一个URI和一个闭包，并以此为基础提供一个非常简单优雅的路由定义方法
+Route::get('<path>', function() {
+	return '<string or template>';
+});
+# 默认路由文件
+所有Laravel路由都定义在位于routes目录下的路由文件中，通过框架自动加载，相应逻辑位于app/Providers/RouteServiceProvider类。routes/web.php文件定义了Web界面的路由，这些路由被分配到web中间件组，从而可以使用Session和CSRF保护等功能。routes/api.php中的路由是无状态的，分配到api中间件组中。
+大多数应用中，都是从routes/web.php文件开始定义路由，定义在routes/web.php中的路由可以通过在浏览器中输入对应URL进行访问。
+而routes/apid中的路由被嵌套在一个路由群组中，所有路由自动添加/api前缀，无需手动添加。可以通过编译app/Providers/RouteServiceProvider类来修改路由前缀以及其他路由群组选项。
+# 有效的路由方法
+Route::get($uri, $callback);
+Route::post($uri, $callback);
+Route::put($uri, $callback);
+Route::delete($uri, $callback);
+Route::patch($uri, $callback);
+Route::options($uri, $callback);
+有时还还需要注册一个路由响应多种HTTP请求动作——可以使用match()方法来实现，或者，可以使用any()方法注册一个路由来响应所有HTTP请求动作
+Route::match($method_arr, $uri, $callback);
+Route::any($uri, $callback);
+web.php中的路由都默认收到CSRF保护检查，而api.php中的则没有限制
+# CSRF保护
+web.php路有文件中的所有请求方式为PUT/POST/DELETE的路由对应的HTML表单都必须包含一个CSRF令牌字段，否则请求将会被拒绝
+如果不在VerifyCsrfToken中间件中排除对它的检查（也不安全），那么就需要在表单提交中带上csrf_token字段
+csrf_token() 生成一个csrf_token字符串
+csrf_field() 生成一个隐藏的input标签，value为csrf_token字符串
+# 路由重定向
+需要定义一个重定向的URI路由，使用Route::redirect方法
+Route::redirect($source_uri, $destination_uri[, $status_code])
+默认情况下，返回302状态码，可以添加一个可选的参数指定状态码
+Route::permanentRedirect($source_uri, $destination_uri) // 指定返回301状态码
+# 路由视图
+如果需要返回一个视图，可以使用Route::view方法和redirect方法类似。
+Route::view($uri, $view_name[, $params_arr]) // 相当于Route::get($uri, function() { return view($view_name[, $params_arr])});
+第三个参数作为视图的渲染数据
+# 路由参数
+1.必选参数
+Route::get('xxx/{param}', function($param) {
+	return $param;
+});
+按照位置给变量赋值
+2.可选参数
+在path的大括号中添加?并给方法参数赋默认值
+Route::get('xxx/{param?}', function($param = null) {
+	
+});
+3.正则约束
+Route::get('xxx/{param}', function($param) {
+	return $param;
+})->where('param', '<pattern>')
+Route::get('xxx/{param}', function($param) {
+	return $param;
+})->where(['param', '<pattern>', ...])
+使用正则表达式还有一个好处就是避免了user/{id}和user{name}的混淆
+4.全局约束
+如果想要路由参数在全局范围内被给定正则表达式约束，可以使用pattern方法 需要在RouteServieProvider类的boot方法中定义这种约束模式
+class RouteServiceProvider extends ServiceProvider {
+	public boot() {
+		Route::pattern([]);
+		parent::boot();
+	}
+}
+一旦模式被应用，将自动应用到所有包含该参数名的路由中
+5.编码
+Laravel路由组件支持除/之外的所有字符，如果要在占位符中使用/需要通过where条件正则表达式显示允许
+Route::get($uri, $callback)->where($param, '.*');
+# 命名路由
+命名路由为生成URL或重定向提供了方便，在路由定义之后使用name方法链的方式来定义该路由的名称
+Route::get($uri, $callback)->name($router_name)
+然后可以简化使用重定向
+Route::get($uri, function() {
+	return redirect()->route($router_name);
+});
+Route::get($uri, function($id) {
+	$url = route($router_name, [$params_arr]);
+	return $url;
+})->name($router_name);
+# 检查当前路由
+想要判断当前请求是否被路由到给定命名路由，可以使用Router实例上的named方法
+$request->route()->named($router_name)
+判断当前请求是否被路由到命名为$router_name的路由上
+# 路由分组
+目的是可以在多个路由中共享相同的路由属性，比如中间件和命名空间等。共享属性以数组的形式作为第一个参数被传递给Route::group方法
+嵌套的分组会尝试智能的将属性合并到父分组中，中间件和where条件会直接被合并，而路由命名、命名空间，以及路由前缀会被附加到父组件对应的属性之后，命名空间分隔符和URI的斜杠会被自动添加到合适的位置
+1.中间件
+要给某个路由分组中定义的所有路由分配中间件，可以在定义分组之前使用middleware方法，中间件会按照数组中定义的顺序依次执行
+Route::middleware(['first', 'second'])->group(function() {
+	Route::get($uri1, $callback1);
+	Route::get($uri2, $callback2);
+})
+2.命名空间
+使用namespace方法分配同一个PHP命名空间给该分组下的多个控制器。
+Route::namespace('Admin', function() {
+	// 使用 App\Http\Controllers\Admin 命名空间下的Controller
+});
+3.子域名路由
+还可以被用于处理子域名路由，子域名可以像URI一样被分配给路由参数，从而允许捕获子域名的部分用于子路由或控制器 使用domain方法
+Route::domain('{account}.blog.dev')->group(function() {
+	Route::get('user/{id}', function($account, $id) {
+		// http://test.blog.dev/user/1 $account => test $id => 1
+	}
+});
+4.路由前缀
+prefix方法为分组中的每个路由添加一个指定的URI前缀
+Route::prefix('admin')->group(function() {
+	Route::get('users', function() {
+		// /admin/users 访问
+	}
+});
+5.路由名称前缀
+name方法为分组中的路由name增加前缀
+Route::name('admin')->group(function() {
+	Route::get('users', function() {
+		
+	})->name('users'); // 此路由命名为admin.users
+})
+# 路由模型绑定
+php artisan make:migration create_table_user --create=user
+上一个命令在database/migrations目录下创建<日期>_create_table_user.php文件 添加
+public function up() {
+	Schema::create('user', function (Blueprint $table) {
+		$table->increment('id');
+		$table->string('name');
+        $table->string('email')->unique();
+        $table->string('password');
+        $table->rememberToken();
+        $table->timestamps();
+	});
+}
+再使用
+php artisan migrate 创建数据库表
+可能报1071 Specified key was too long; max key length is 1000 bytes错误
+需要将MySQL的默认字符街变为utfmb4 然后在AppServiceProvider的boot()方法中添加
+Schema::defaultStringLength(191);
+
+注入模型ID到路由或控制器动作时，通常需要查询数据库才能获取相应的模型数据。路由模型绑定让注入模型实例到路由变得简单
+1.隐式绑定
+会自动解析定义在路由或控制器动作（变量名匹配路由片段）中的Eloquent模型类型声明
+Route::get('users/{id}', function(App\Models\User $user) {
+	return $user->email;
+});
+此时会自动将请求传入的UserId对应的数据模型注入到$user中
+2.自定义键名
+如果使用的列名不是id则需要覆盖Model的getRouteKeyName()返回需要查询的列名
+getRouteKeyName() 默认返回的是主键名
+3.显式绑定
+在RouteServiceProvider的boot方法中使用Route的model方法绑定数据模型到指定的名称中
+public function boot() {
+	parent::boot();
+	Route::model('user_model', App\Models\User::class);
+}
+Route::get('users/{user_model}', function($user) {
+	// 此时也会注入对应的数据
+});
+如果匹配的数据模型不存在则返回404
+4.自定义解析逻辑
+在RouteSerivceProvider的boot方法中使用Route::bind方法，传递到bind方法的闭包会获取到URI请求参数中的值，并且返回想要在该路由中注入的类的实例
+# 兜底路由
+Route::fallback方法可以定义一个当所有其他路由都为匹配时所执行的路由，通常未处理请求会通过Laravel的异常处理器渲染一个404页面。定义fallback路由时，所有web中间件组的路由都会以此兜底
+# 频率限制
+Laravel自带一个中间件用于限制对应用路由的访问频率。throttle中间件接收两个参数用于判断给定时间内的最大请求次数
+Route::middle('auth:api', 'throttle:60:1')->group(function() {
+
+});
+动态频率限制
+Route::middleware('auth:api', 'throttle.rate_limit,1')->group(function() {
+	Route:get($uri, $callback);
+});
+对包含rate_limit的模型访问添加限制
+# 表单方法伪造
+_method 字段
+或
+@method('PUT')
+# 访问当前路由
+可以使用Route门面上的current/currentRouteName/currentRouteAction方法来访问处理当前输入请求的路由信息
+
+## 中间件
+中间件为过滤进入应用的HTTP请求提供了一套便利的机制。
+Laravel框架自带了一些中间件，包括认证、CSRF保护中间件等，位于App/Http/Middleware目录下
+# 定义中间件
+php artisan make:middleware CheckToken
+class CheckToken 
+{
+	public function handle($request, Closure $next) 
+	{
+		if ($request->input('token') != 'xxx') {
+			return redirect()->to('xxxx');
+		}
+		return $next.handle($request);
+	}
+}
+请求之前的中间件
+// 拦截逻辑
+return $next->handle($request);
+请求之后的中间件
+$response = $next->handle($request);
+// 拦截逻辑
+return $response;
+# 注册中间件
+中间件分3类，全局中间件、中间件组和指定路由中间件
+1.全局中间件
+在每一个请求中都被执行，需要将全局中间件添加到app/Http/Kernel.php的数组属性$middleware中
+除了必须，否则很少将业务级别的中间件放到全局中间件中
+2.分配中间件到指定路由
+app/Http/Kernel.php文件中分配给中间件一个key，默认情况下，该类的$routedMiddleware属性包含了Laravel自带的中间件，添加自定的放到最后并分配一个key
+然后在Route::xxx()->middleware($route_middleware_key)
+3.可以将多个中间件分配到一个键名下，方便为路由配置中间件。使用App/Http/Kernel.php中的middlewareGroups属性
+Laravel已经定义了web和api两个中间件组，并在RouteServiceProvider中为web.php和api.php分配这两个中间件组。
+$middlewareGroup = [
+	'customMiddlewareGroup' => [
+		'<middleware::class or middleware_alias>',
+	],
+]
+注册方式
+Route::group(['middleware'=>['middle_alias']], function() {
+	Route::get($uri, $callback);
+});
+或者
+Route::middleware('middleware_alias')->group(function() {
+	Route:get($uri, $callback);
+});
+4.中间件排序
+通过app/Http/Kernel.php中的$middlewarePriority属性来指定优先级
+# 中间件参数
+还可以接受额外的自定义参数，在$next参数之后传入中间件
+class CheckRole
+{
+	public function handle($request, $next, $role) 
+	{
+		
+	}
+}
+传入$role需要在middleware('checkRole:1') 此时$role = 1
+# 终端中间件
+有时候中间件可能需要在HTTP响应发送到浏览器之后做一些工作，需要定义一个终端中间件并添加terminate方法到中间件中
+public function terminate($request, $response) {
+	// 后台工作
+}
+接受街球和响应作为参数，定义了终端中间件后需要添加到Kernel.php文件的全局中间件列表中
+调用terminate方法时，会从服务容器中取出一个该中间件的新实例，如果想要使用同一个，则需要使用singleton方法注册为单例
+
+## CSRF保护
+跨站请求伪造（CSRF）是一种通过伪装授权用户的请求来攻击授信网站的恶意漏洞。
+Laravel通过自带的CSRF保护中间件避免被攻击。自动为每一个被应用管理的有效用户生成一个CSRF令牌，并存储到Session中。该令牌用于验证授权用户和发起请求者是否相同
+任何时候在HTML表单中。都应该引入CSRF令牌字段，这样才能启动保护。@csrf可以生成包含CSRF令牌的隐藏字段
+中间件组web的VerifyCsrfToken会自动为验证请求输入的token值和Session中保存的token值是否相同。如果没有传递csrf或者与session中的不同则报错
+CSRF令牌 和 Javascript
+可以让Javascript HTTP库自动为每个请求添加CSRF令牌 默认情况下 resources/js/bootstrap.js文件会将csrf.tokenmeta标签值注册到AxiosHTTP库中，没有则需要手动配置
+# 排除指定URL不做CSRF安全校验
+可以将需要排除的URL放到api.php中
+也可以需要排除的中间件类中添加$except属性数组
+# X-CSRF-Token
+除了作为POST参数进行验证外，也可以通过设置X-CSRF-Token请求头来实现验证，VerifyCsrfToken中间件会检查X-CRSF-TOKEN请求头。
+实现方式，先创建一个meta标签并将Crsf令牌保存到该meta标签中
+<meta name="csrf-token" content="{{ csrf_token() }}">
+然后在js库(以下为jQuery)中添加早所有请求头
+$.ajaxSetup({
+	headers: {
+		'X-CSRF-TOKEN': $('meta[name="csrf-token"]).attr('content')
+	}
+})
+# X-XSRF-Token
+Laravel还会将CSRF令牌保存到名为XSRF-TOKEN的Cookie中，可以使用该Cookie值来设置X-CSRF-Token请求头。
+有些JavaScript框架会自动执行上一步操作
+
+## 控制器
+组织管理相对复杂的业务逻辑处理，控制器用于将相关HTTP请求封装到一个类中进行处理，位于app/Http/Controllers中
+# 控制器入门
+1.定义控制器
+php artisan make:controller UserController
+class UserController extends Controller {
+	public function show($id) {
+		return view('user.profile', ['user' => User::findOrFail($id)]);
+	}
+}
+Route::get('user/{id}', 'UserController@show'); // 使用UserController的show方法
+在resource/views/user下创建profile.blade.php
+{{ dd($user) }}
+控制器类不一定继承自基类，但是，基类包含一些便利方法，比如middleware、validate和dispatch等
+2.命名空间
+web.php下的命名空间在RouteServiceProvider的mapWebRoutes()方法添加了基础的命名空间
+->namespace($this->namespace) 代表app/Http/Controllers 只需要添加之后的即可使用
+3.单一动作控制器
+public function __invoke() 魔术方法
+实现这个方法的控制器只处理一个动作，在Route中无需使用@指定调用的方法
+需要快速创建单一动作控制器 使用
+php artisan make:controller UserController --invokable
+# 控制器中间件
+可以
+Route::get($uri, 'XController@method')->middleware('middleware_alias');
+不过将中间件放在控制器构造函数中更加方便，使用middleware方法可以轻松分配中间件给该控制器，对所有控制器方法都有效。
+public function __construct() {
+	$this->middleware('');
+	$this->middleware('')->only('method_name'); // 只在指定方法中使用中间件
+	$this->middleware('')->except('method_name'); // 排除指定方法不使用中间件
+	$this->middleware(function($request, $next) {
+		return $next.handle($request);
+	}); // 使用闭包匿名中间件
+}
+# 资源控制器
+可以很边界的构建基于资源的RESTFul控制器。
+php artisan make:controller XController --resource
+会创建使用资源中可能会用到的大部分方法
+再使用
+Route::resource($uri, 'XController');
+将一个资源控制器注册到一个资源路由上 这个路由包含了处理资源对应动作的多个路由
+Route::reource([
+	'photos' => 'PhotoController',
+	'posts' => 'PostController',
+])
+使用数组可以一次性注册多个资源路由
+资源控制器处理的动作
+请求方式			URI路径				控制器方法				路由名称
+GET					/posts				index					posts.index
+GET					/posts/create		create					posts.create
+POST				/posts				store					posts.store
+GET					/posts/{posts}		show					posts.show
+GET					/posts/{post}/edit	edit					post.edit
+PUT/PATCH			/posts/{post}		update					posts.update
+DELETE				/posts/{posts}		destory					posts.destroy
+2.指定资源模型
+php artisan make:controller PostController --resource --model=Post
+不推荐这种模型绑定
+3.伪造表单方法
+<form method="post">
+	@method('PUT')
+</form>
+4.部分资源路由
+Route::resource('post', 'PostController', ['only' => ['show', 'index']]); // 只配置show和index的资源路由
+Route::resource('post', 'PostController', ['except' => ['show', 'index']]); //　排除不配置show和index的资源路由
+5.命名资源路由
+Route::resource('post', 'PostController', ['names' => ['create' => 'posts.build']]); // 将create对应的路由名称改为posts.build 原来是posts.create
+6.命名资源路由参数
+Route::resource('post', 'PostController', ['parameters' => ['users' => 'admin_user']]); // 为show生成posts/{admin_user}的uri
+7.本地化资源URI
+在RouteServiceProvider的boot方法中添加Route::resourceVers方法 实现本地化
+Route::resourceVers([
+	'create' => 'xinzeng',
+	'edit' => 'bianji',
+]);
+8.补充资源控制器
+如果需要在默认资源路由之外添加额外的路由到资源控制器，应在调用Route::resource之前定义这些路由 否则可能出现覆盖
+Route::get('posts/popular', 'PostController@method');
+# 依赖注入
+1.构造函数注入
+可以在控制器的构造函数中注入任何依赖，会被自动解析并注入到控制器实例中
+2.方法注入
+可以在方法中进行依赖注入，也会自动解析
+如果有路由参数则需要放在其他参数之后
+# 路由缓存
+不会作用于基于闭包的路由，必须使用控制器路由
+php artisan route:cache
+每次请求从缓存中读取路由，如果添加新路由需要重新生成路由缓存，则需要在项目部署阶段运行route:cache命令
+清除路由缓存文件
+php artisan route:clear
+
+## HTTP请求
+# 访问请求实例
+class UserController extends Controller {
+	public function store(Request $request) {
+		$name = $request->input('name');
+	}	
+}
+1.依赖注入和路由参数
+如果还想在控制器方法中获取路由参数，只需要将路由参数置于其他依赖之后即可。
+2、通过闭包访问请求
+Route::get('/', function(Request $request) {
+
+});
+3.请求路径&方法
+Request提供多个方法用于检测应用的HTTP请求
+1)获取请求路径
+$request->path() // 返回URI的path部分
+$request->is(pattern) // URI的path部分是否匹配正则表达式
+2)获取请求URL
+$request.url() // 不包含查询字符串
+$request.fullUrl() // 包含查询字符串
+3)获取请求方法
+$request.method()
+$request.isMethod('method_name')
+4.PSR-7请求
+PSR-7标准指定了HTTP消息接口，包括请求和响应。
+需要安装一些库，将典型的Laravel请求响应转换为兼容PSR-7接口
+composer require symfony/psr-http-message-bridge
+composer require zendframework/zend-diactoros
+在注入是指定为Psr\Http\Message\ServerRequestInterface $request即可注入PSR-7标准的请求
+# 请求字符串处理
+在App/Http/Kernel中的全局中间件中引入了
+TrimStrings 去除url字符串的空格
+ConvertEmptyStringToNull 将空字符串转换为null
+# 获取请求输入
+1.获取所有输入值
+$reqeust->all() 以数组形式获取所有输入值
+2.获取单个输入值
+$reqest->input('param_name'[, 'default_vaule'])
+3.从查询字符串中获取输入
+input()方法会从整个请求负载（包括查询字符串）中获取值，query则只会从查询字符串中获取数值
+$request->query('param_name'[, 'default_value'])
+不带参数的query方法则返回所有查询字符串的值
+$request有两个属性对象存放参数值
+query
+request
+query()方法从query中获取
+post()方法从request中获取
+input()方法从query和request中获取
+4.通过动态属性获取输入
+$name = $request->name;
+实现原理是__get()魔术方法
+5.获取JSON输入值
+Content-Type: application/json 可以用input方法获取JSON数据
+6.获取输入的部分数据
+$request->only([])
+$reqeust->except([])
+7.判断请求参数是否存在
+$requst.has([])
+# 上一次请求
+允许在两次请求之间保存上一次输入数据，检测校验数据失败后需要重新填充表单数据时很有用
+1.将输入存储到session
+$request->flash() // 将当前输入存放到一次性Session（即取出后立刻销毁）中，这样下次请求时上一次输入依然有效
+$reqeust->flashOnly()
+$request->flashExcept()
+2.将输入存储到Session然后重定向
+return redirect()->withInput()
+return redirect()->withInput($reqeust.except())
+return redirect()->withInput($reqeust.only())
+3.取出上次请求数据
+$request->old('')
+old() 在blade模板中显示
+# Cookie
+Laravel框架创建的Cookie都经过加密并使用一个认证码进行签名
+1.取出Cookie
+$value = $request->cookie('name')
+Cookie::get('name')
+2.添加Cookie
+return $response()->cookie(name, value, expire, path, domain, secure, httpOnly)
+还可以使用Cookie门面将应用于附件的Cookie推送到输出响应队列，queue方法接受一个Cookie实例或者创建Cookie实例的必要参数，在响应发送到浏览器之前添加
+Cookie::queue(Cookie::make())
+Cookie::queue(name, value, expire, path..)'
+3.生成Cookie实例
+可以使用全局辅助函数cookie() 只有在添加到响应实例上才会发送到客户端
+# 文件上传
+1.获取上传的文件
+使用Request实例提供file方法或者动态属性来访问上传文件
+$file = $request->file('photo')
+$file = $request->photo;
+$requet->hasFile('photo')  // 是否包含文件
+2.验证文件是否上传成功
+$request->file('photo')->isValid()
+3.文件路径 & 扩展名
+UploadedFile类还提供了访问上传文件绝对路径和扩展名的方法
+extension方法可以基于文件内容判断文件扩展名 可能会和客户端提供的扩展名不一致
+$request->file('photo')->path()
+$request->file('photo')->extension()
+4.其他文件方法
+1)保存上传的文件
+需要配置某个文件系统 配置位于config/FileSystem.php
+默认使用local配置存放上传文件，即本地文件系统。默认根目录是storage/app
+public也是本地文件系统，不过存放的文件可以被公开访问，对应的根目录是storage/app/public 需要创建一个软连接
+UploadedFile有一个store方法，会将上传的文件移动到相应的磁盘路径上，可以是本地文件系统的某个位置，也可以是云存储的路径
+store接受一个文件保存的相对路径（相对于文件系统配置的根目录），该路径不需要包含文件名，系统会自动生成一个唯一ID作为文件名
+store还接受一个可选的参数用于存储文件的磁盘名称作为第二个参数
+如果不希望自动生成文件名 可以使用storeAs
+storeAs(path, file_name, disk_name)
+# 配置信任代理
+应用运行在一个会中断TLS/SSL证书的负载均衡器之后，不会生成HTTPS链接，通常因为应用是从负载均衡器从80端口转发过来的流量。所以不知道如何生成加密链接。
+使用APP/Http/Middleware/TrustProxies中间件。允许快速自定义需要被应用信任的负载均衡器或代理
+$proxies属性列表中。
+$headers属性列表还可以配置代理转发的带有请求来源信息的消息头
+protected $proxies = [
+	'',
+	'',
+]
+2.信任所有代理
+protected $proxies = "*";
+
+## HTTP响应
+# 创建响应
+1.字符串 & 数组
+所有路由和控制器处理完业务逻辑之后都会返回一个发送到用户浏览器的响应。提供多种不同方式来返回响应，最基本的响应是返回一个简单字符串，框架会自动转换为一个完整的HTTP响应
+返回数组则会自动转换为一个JSON响应
+2.Response对象
+并不只是从路由动作简单返回字符串和属组，都会返回一个完整的Response实例或视图
+返回一个完整的Response实例允许自定义响应的HTTP状态码和头信息，提供了一系列方法用于创建HTTP响应
+return response('', 200)->header('', '');
+3.添加响应头
+return response($content)->header()->header()->header();
+return response($content)->withHeaders([ , , ]);
+4.添加Cookie到响应
+return response($content)->coolie($name, $value, $expire, $path, $domain, $secure, $httpOnly)
+也可以使用Cookie门面
+Cookie::queue()
+Cookie::queue()
+return response($content);  // queue添加的cookie在响应返回前添加
+5.cookie & 加密
+默认被框架自动加密，如果需要不加密的cookie则修改app/Http/Middleware/EncryptCookies中间件
+protected $except = []; // 需要排除的cookie
+# 重定向
+return redirect() // 重定向
+return back()->withInput() // 返回上一个页面并带上参数
+2.重定向到命名路由
+redirect() 不带参数会返回一个Redirector实例，可以调用此实例上的方法。
+return redirect()->route('')
+return redirect()->route('', [])
+3.重定向到控制器动作
+retrurn redirect()->action('controller@method')
+retrurn redirect()->action('controller@method', [])
+4.重定向到外部域名
+return redirect()->away('')
+5.带一次性Session数据的重定向
+return redirect('').with();
+return redirect('').withInput();
+# 其他响应类型
+可以通过辅助函数response()方便生成其他类型的响应实例
+无参数的response()会返回ResponseFactory契约的一个实现，提供了用于生成各种响应的方法，如视图响应，JSON响应，文件下载，流响应等等
+1.视图响应
+return response()->view('', $data, $status_code)->header('', '')
+如果不需要传递自定义的状态码和头信息则使用
+return view('')
+2.JSON响应
+return response()->json([])
+如果想要返回JSONP响应可以在json方法之后调用withCallback方法
+return response()->json([])->withCallback($request->input(''))
+或者直接调用jsonp()方法
+return response()->jsonp($request->input(''), [])
+3.文件下载
+download方法用于生成强制用户浏览器下载给定路径文件的想要，接受文件名作为第二个参数，决定用户下载文件的显示名称
+return response()->download($pathToFile)
+return response()->download($pathToFile, $name, $headers)
+return response()->download($pathToFile)->deleteFileAfterSend(true)
+(下载文件不能包含中文)
+4.流式下载
+将指定操作的字符串响应转换为可下载的响应而不用将操作内容写入磁盘，可以使用streamDownload方法，接收一个回调、文件名以及可选的头信息作为参数
+return response()->streamDownload(function() {
+	echo GitHub::api('repo')
+		->contents()
+		->readme('laravel', 'laravel')['contents'];
+}, 'name', headers[]);
+5.文件响应
+return response()->file() 直接在用户浏览器中显示文件，而不需要下载，接收文件路径作为第一个参数，头信息数组作为第二个参数
+# 响应宏
+自定义的可以在多个路由和控制器中复用的响应，可以使用Response门面上的macro方法
+Response::macro('caps', function($value) {
+	return Response::make(strtoupper($value));
+});
+return response()->caps('bca');
+
+## 视图
+# 创建视图
+视图文件存放在resource/views目录下
+return view('greeting', ['name' => '123'])
+返回resource/views/greeting.blade.php 并携带数据
+使用.使用子目录和子文件
+2.判断视图是否存在
+View::exists('')
+3.创建有效视图
+return view()->first([], $data)
+返回数组第一个有效的视图文件
+return View::first([], $data)
+# 传递数据到视图
+return view($view_path, $data_arr)
+可以简单通过数组将数据传递到视图
+也可以使用
+return view($view_path)->with($key, $value) 将独立的数据片段添加到视图
+2.在视图间共享数据
+需要在某个服务提供商的boot方法中使用View门面的share方法
+pubic function boot() {
+	View::share($key, $value);
+}
+# 视图Composer
+是当视图被渲染时的回调函数或类方法，如果有一些数据在视图每次渲染时都做绑定，可以使用视图Composer将逻辑阻止到一个单独的地方
+需要在某个服务提供商中注册视图Composer
+View::composer('view_path', 'composer_path') 
+不包含默认的视图Composer目录，需要自行创建任意目录作为Composer目录
+2.添加Composer到多个视图
+View::composer($view_arr, function or $composer_path)
+View::composer('*', function or $composer_path) // 通配符 * 添加到所有视图
+3.视图创建器
+视图创建器与Composer类似，但是生效时间在视图实例化时
+View::creator('', 'xxx/xxx/xxCreator')
+
+## URL生成
+提供来多个辅助函数来帮助在应用中生成URL
+# 快速入门
+1.生成URL
+url辅助函数可用于为应用生成任意URL，并且生成的URL会自动使用当前请求的schema和host属性
+$post = App\Post::find(1)
+echo url("/posts/${post->id}")
+2.访问当前URL
+url->current() // 当前url 不包含请求字符串
+url->full()	// 当前url 包含请求字符串
+url->pervious() // 请求上一个完整的url
+上述方法可以使用URL门面访问
+URL::current()
+URL::full()
+URL::previous()
+# 命名路由URL
+route可用于生成指向命名路由的URL，命名路由允许生成不与实际URL耦合的URL，
+route($route_name, $data_arr)
+# 签名URL
+将签名哈希追加到查询字符串后，以便验证URL在创建之后是否被篡改。
+URL::signedRoute($route_name, $data);
+URL::temporarySignedRoute($route_name, now->addMinutes(30), $data);   // 有过期时间的临时签名URL
+2.验证签名路由请求
+$request->hasValidSignature()
+还可以分配ValidateSignture中间件到路由
+先注册到Keynel.php的$routeMiddleware
+在将中间件注册到路由上，验证不通过的请求自动返回403响应
+# 控制器动作URL
+$url = action('$controller_name@$method_name')
+# 参数默认值
+URL::defaults([])
+设置默认值后 无需通过route辅助函数生成URL时指定传递参数
+
+## Session
+HTTP协议本身是无状态的，上下请求无任何关联，因此引入Session来存储用户请求信息以解决特定场景无状态导致的问题。通过简单API统一处理各种Session驱动，开箱即用包括Memcached、Redis和数据库
+Laravel没有使用PHP的session机制
+# 配置
+Sessio配置在config/session.php中。默认使用file驱动，可能考虑memcached或redis获取更佳的Session性能。
+'driver' => env('SESSION_DRIVER', 'file') 定义Session存储驱动
+file 存储在storage/framework/session目录下
+cookie 存储在加密的cookie中
+database
+memcached /redis 
+array 存储在简单PHP数组中，多个请求之间是非持久化的
+# 驱动预备知识
+1.数据库
+php aritsan session:table // 相当于使用php artisan make:migration create_session_table --create=session 再添加字段信息
+php artisan migrate; // 建立表
+2.Redis
+需要使用Composer安装predis/predis依赖包，再在database配置文件中配置Redis连接。Session配置文件中，connection指定使用哪个Redis连接
+需要修改
+database.php
+session.php
+.env
+# 使用Session
+全局辅助函数session()，或者通过request实例，启动过程中会将Session数据设置到实例的Session属性中
+$request->session() 获取session
+session('key', 'default') 	// 获取session中的值
+session(['key' => 'value])	// 设置session中的值
+1.获取所有session数据
+$request->session()->all()
+$request->session()->has('') 	 	// 是否存在键 且值不为空
+$request->session()->exists('')		// 是否存在键 不在乎值
+# 存储数据
+$request->session()->put($key, $value)
+session([])
+1.推送数据到数组session
+$request->session()->push('', '')
+2.获取&删除数据
+$request->session()->pull($key, $default) // 获取数据并删除
+# 一次性数据
+$request->session()->flash($key, $value)
+$request->session()->reflash($key) // 生存到下一次请求
+$request->session()->keep([]) // 长期保存特定数据
+# 删除数据
+$request->session()->forget($key)
+$request->session()->forget([$key, $key2])
+$request->session()->reflush() // 一次清空所有数据
+# 重新生成Session ID
+$request->session()->regenerate()
+# 添加自定义Session驱动
+需要实现SessionHandlerInterface接口
+class MongoSessionHandler implements SessionHandlerInterface
+{
+    public function open($savePath, $sessionName) {} // 基于file的存储系统 已经存在置为空即可
+    public function close() {} // 同open
+    public function read($sessionId) {} // 返回与给定$sessionId相匹配的Session数据的字符串版本 从驱动中获取
+    public function write($sessionId, $data) {} // 将给定的$data写到存储系统中相应$sessionId
+    public function destroy($sessionId) {} //删除
+    public function gc($lifetime) {} // 销毁大于给定$lifetime的所有Session数据
+}
+注册驱动
+在某个服务提供商的boot方法中使用Session门面的extend方法
+Session::extend('', function($app) {
+	return new XXXSessionHandler;
+});
+
+## 表单验证
+控制器基类使用ValidateRequests trait提供便捷方法通过各种功能强大的验证规则来验证输入的HTTP请求
+# 快速入门
+1.定义路由
+2.创建控制器
+3.编写验证逻辑
+$request->validate([
+	'' => 'required|max:255'
+]);
+4.首次验证失败后终止后续验证
+$request->validate([
+	'' => 'bail|required|max:255'
+]);
+使用bail作为验证规则中的首规则
+5.嵌套属性注意事项
+$request->validate([
+	'user.name' => 'bail|required|max:255'
+]);
+<input name="user[name]" >
+6.显示验证错误信息
+会被放入一次性Session中
+session()->all()查看所有
+总是存在一个$errors变量，是MessageBeg实例，通过web中间件组中的ShareErrorsFromSession绑定到视图
+由于是一次性Session 如果别的地方用了 $errors就取不到
+7.可选参数注意事项
+添加nullable验证规则
+8.AJAX请求&验证
+不会产生重定向，而是产生一个JSON响应，附带422状态码
+
+******************************************
+暂时没看完
+******************************************
 
 
-
-
+## 异常错误处理
 
 
 
