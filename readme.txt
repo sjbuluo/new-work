@@ -470,6 +470,265 @@ mapper.xml
 </mapper>
 最后使用@Autowaired或@Resource注入即可使用
 
+
+## Spring Boot、myBatis、mybatis Generator、多数据源配置
+# myBatis Generator使用
+1.在pom.xml中引入myBatis Generator相关的maven插件并在其中加入需要的依赖
+<plugin>
+	<groupId>org.mybatis.generator</groupId>
+	<artifactId>mybatis-generator-maven-plugin</artifactId>
+	<version>1.3.7</version>
+	<dependencies>
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>8.0.16</version>
+		</dependency>
+		<dependency>
+			<groupId>org.mybatis.generator</groupId>
+			<artifactId>mybatis-generator-core</artifactId>
+			<version>1.3.7</version>
+		</dependency>
+	</dependencies>
+	<executions>
+		<!-- maven命令命名 -->
+		<execution>
+			<id>Generate MyBatis Artifacts</id>
+			<phase>package</phase>
+			<goals>
+				<goal>generate</goal>
+			</goals>
+		</execution>
+	</executions>
+	<configuration>
+		<!-- 是否可以移动文件 -->
+		<verbose>true</verbose>
+		<!-- 是否可以覆盖文件 -->
+		<overwrite>true</overwrite>
+		<!--meishesdkauth 库生成-->
+		<!--<configurationFile>src/main/resources/mybatis_generator/mybatis-generator-meishesdkauth.xml</configurationFile>-->
+		<!--meishesdk 库生成-->
+		<!--<configurationFile>src/main/resources/mybatis_generator/mybatis-generator-meishesdk.xml</configurationFile>-->
+		<!--statistics 库生成-->
+		<!--<configurationFile>src/main/resources/mybatis_generator/mybatis-generator-statistics.xml</configurationFile>-->
+		<!--streaming 库生成-->
+		<configurationFile>src/main/resources/mybatis_generator/mybatis-generator-streaming.xml</configurationFile>
+	</configuration>
+</plugin>
+2.在指定位置创建generator相关xml配置文件 比如src/main/resources/mybatis_generator/mybatis-generator-meishesdk.xml
+配置如下 (详细信息可以百度)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+<generatorConfiguration>
+    <context id="MySQLMeishesdkTables" targetRuntime="MyBatis3">
+        <!-- 注释相关 -->
+        <commentGenerator>
+			<!-- 是否禁止自动生成日期注释 -->
+            <property name="suppressDate" value="true"/>
+			<!-- 是否禁止自动生成所有注释 -->
+            <property name="suppressAllComments" value="true"/>
+        </commentGenerator>
+        <!-- 数据库连接配置 -->
+        <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver" connectionURL="jdbc:mysql://localhost:3306/meishesdk?serverTimezone=UTC&amp;useUnicode=true&amp;characterEncoding=UTF-8&amp;nullCatalogMeansCurrent=true" userId="root" password="">
+			<!-- MySQL8.0的JDBC驱动 使用catalog而不是schema来扫描表，如果不指定以下配置 则会扫描全部表 所有同名的表都会生成一遍 最后生成的POJO则是最后一个数据库的版本 可能会造成异常 -->
+            <property name="nullCatalogMeansCurrent" value="true" />
+        </jdbcConnection>
+
+        <javaTypeResolver>
+            <property name="forceBigDecimals" value="false" />
+        </javaTypeResolver>
+
+		<!-- POJO生成的目录 -->
+        <javaModelGenerator targetPackage="com.sun.health.multi_datasource.entity.meishesdk" targetProject="src/main/java">
+			<!-- 在table标签中指定catalog或schema会在对应目录下创建POJO -->
+            <property name="enableSubPackages" value="true" />
+            <property name="trimStrings" value="true" />
+        </javaModelGenerator>
+        
+		<!-- mapper.xml生成的目录 -->
+        <sqlMapGenerator targetPackage="mapper.meishesdk" targetProject="src/main/resources">
+            <property name="enableSubPackages" value="true" />
+        </sqlMapGenerator>
+        
+		<!-- mapper接口生成的目录（相当于DAO） -->
+		<!-- type分为3种
+			ANNOTATEDMAPPER 注解风格
+			XMLMAPPER mapper.xml风格
+			MIXEDMAPPER 混合风格 生成xml文件和接口类
+		-->
+        <javaClientGenerator type="ANNOTATEDMAPPER" targetPackage="com.sun.health.multi_datasource.dao.meishesdk" targetProject="src/main/java">
+            <property name="enableSubPackages" value="true" />
+        </javaClientGenerator>
+
+		<!-- 需要生成POJO的表名 -->
+        <table tableName="administrator">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="app_info">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="app_type">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="auth_info_material_count">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="authentication_info_material">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="banner_list">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="custom_sticker">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="customers">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="customers_comment">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="email">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="failed_jobs">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="feedback">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="job_info">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="jobs">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="license_expire_email">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="license_material">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="license_sdk">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="material">
+            <property name="useActualColumnNames" value="false" />
+			<!-- 可以给列换名 -->
+            <columnOverride column="public" property="publicShort">
+            </columnOverride>
+        </table>
+        <table tableName="material_category">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="material_requisition">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="materialbak">
+            <property name="useActualColumnNames" value="false" />
+            <columnOverride column="public" property="publicShort">
+            </columnOverride>
+        </table>
+        <table tableName="migrations">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="news">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="report">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="sdk_info">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="solutions">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+        <table tableName="user">
+            <property name="useActualColumnNames" value="false" />
+        </table>
+    </context>
+</generatorConfiguration>
+3.运行mvn命令或者使用idea的maven projects中点击即可
+mvn mybatis-generator:generate
+
+# 多数据源配置 （有两种办法 一个是AOP 一个分包 看实际使用） 
+************** 分包的办法
+1.配置文件 application.yml中
+spring:
+	datasource:
+		multiplenames: meishesdkauth, statistics, streaming
+		meishesdk:
+			driver-class-name:
+			type:
+			url:
+			username:
+			password:
+			initial-size: 5
+			min-idle: 5
+			max-active: 20
+			# 额外的数据源配置
+		meishesdkauth:
+			# 同上 修改url password username等数据源基本信息即可
+		statistics:
+			# 同上
+		streaming:
+			# 同上
+2.配置配置类
+@Configuration
+@MapperScan(basePackages = {"com.sun.health.multi_datasource.entity.meishesdk"}, sqlSessionfactroyRef="", sqlSessionTemplateRef="", nameGenerator=CustomNameGenerator.class)
+public class MeishesdkDBConfig {
+	@Bean
+	@Qualifier("meishesdkDataSource")
+	@Primary
+	@ConfigurationProperties(prefix="spring.datasource.meishesdk")
+	public DataSource meishesdkDataSource() {
+		return DataSourceBulider.create().type(DuridDataSource).build();
+	}
+	@Bean("meishesdkSqlSessionFactory")
+	@Primary
+	public SqlSessionFactory meishesdkSqlSessionFactory(@Qualifier("meishesdkDataSource") DataSource dataSource)  {
+		SqlSessionFactoryBean bean = new SqlSessionFactoryBean();
+		bean.setDataSource(dataSource);
+		bean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources("classpath:mapper/meishesdk/*.xml"); // 如果使用ANNOTATEDMAPPER 可能不会生成对应目录 需要手动生成目录 并在其中添加一个空文件 这样target才有对应的目录 否则会报错
+		return bean.getObject();
+	}
+	@Bean("meshesdkTransactionManager")
+	@Primary
+	public TransactionManager meishesdkTransactionManager(@Qualifier("meishesdkDataSource") DataSource dataSource) {
+		return new DataSourceTransactionManager(datasource);
+	}
+	@Bean("meishesdkSqlSessionTempalte")
+	@Primary
+	public SqlSessionTemplate meishesdkSqlSessionTemplate(@Qualifier("meishesdkSqlSessionFactory") SqlSessionFactory sqlSessionFactory) {
+		return new SqlSessionTemplate(sqlSessionFactory);
+	}
+}
+@Primary用于标记主数据源（即默认数据源），没有指定名称注入的都是@Primary注解的Bean。其他数据源配置过程一致，去掉@Primary注解即可
+由于多个数据库中可能存在相同名称的表，因此生成的Mapper接口名可能相同，造成同名的bean引发程序报错 可能需要改名 BeanNameGenerator用于给Bean命名 MapperScan中默认使用AnnotationNameGenerator
+public class CustomNameGenerator extends AnnotationNameGenerator {
+	// 可以自行给Bean命名 这里我给Bean加上包路径中最后一个加上$作为前缀 即meishe$XXXMapper 等
+	@Override
+    public String generateBeanName(BeanDefinition beanDefinition, BeanDefinitionRegistry beanDefinitionRegistry) {
+        return super.generateBeanName(beanDefinition, beanDefinitionRegistry);
+    }
+
+    @Override
+    protected String buildDefaultBeanName(BeanDefinition definition) {
+        String beanClassName = definition.getBeanClassName();
+        Assert.state(beanClassName != null, "No bean class name set");
+        String shortClassName = ClassUtils.getShortName(beanClassName);
+        String packageName = ClassUtils.getPackageName(beanClassName);
+        packageName = packageName.substring(packageName.lastIndexOf('.') + 1);
+        return Introspector.decapitalize(packageName + "$" + shortClassName);
+    }
+}
+配置完之后就可以使用了
+@Autowaired配置@Qualifier或者@Resource注入接口使用即可
+
+
 ### Hibernate
 data-jpa使用可以兼容hibernate
 @Autowaired
