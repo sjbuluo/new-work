@@ -1251,8 +1251,28 @@ rollback
 ## PDO中存储过程
 call 
 
-
-
+## PHP异常
+# 基本使用
+当抛出异常，其后代码不会执行，会尝试查找匹配catch代码块
+如果没有捕获，也没有使用set_exception_handler()做相应处理，将发生严重异常，并输出UncaughtException错误消息
+# Try Throw Catch
+1.Try 使用异常的函数应该处于try代码块内
+2.Throw 如果触发异常 一个throw应该对应至少一个catch
+3.Catch catch代码块会捕获异常 并创建一个包含异常信息的对象
+# 创建自定义的Exception类
+class CustomException extends Exception {
+	
+}
+# 抛出多个异常
+使用多个catch
+# 重新抛出异常
+只是记录 并不处理
+# 设置顶层异常处理器
+function myExceptionHandler($exception) {
+	// 
+}
+set_exception_handler('myExceptionHandler');
+捕获未处理的异常
 
 ### Laravel 
 ************************** 5.8 ***********************
@@ -2272,13 +2292,1823 @@ session()->all()查看所有
 添加nullable验证规则
 8.AJAX请求&验证
 不会产生重定向，而是产生一个JSON响应，附带422状态码
+# 表单请求验证
+1.创建表单请求
+php artisan make:request StoreBlogPostRequest
+在app/Http/Requests目录下生成StoreBlogPost
+class StoreBlogPostRequest extends FormRequest {
+	public function authorize() {
+		return false;
+	}
+	public function rules() {
+		return [
+			'title': 'required',
+			'body': 'required',
+		];
+	}
+}
+在控制器类中的控制方法注入这个Request替代基类Request
+public function store(StoreBlogPostRequest $request) {
+	$validated = $request->validated();
+}
+验证失败，重定向响应会生成并将用户退回上一个位置，错误信息也会被存储到一次性Session以便在视图中显示。如果是Ajax请求则会返回带有422状态码的JSON内容HTTP响应。
+2.添加验证后钩子到表单请求
+使用withValidator方法，接受完整的构造验证器，从而允许在验证规则执行前调用任何验证器方法
+public function withValidator($validator) {
+	$validator->after(function($validator) {
+		if ($this->somethingElseIsValid()) {
+			$validator->errors->add('field', 'error_info');
+		}
+	});
+}
+3.授权表单请求
+表单请求类还有一个authorize方法，可以通过该方法检查认证用户是否有权限更新指定资源
+public function authorize() {
+	$comment = Comment::find($this->route('comment'));
+	return $comment && $this->user()->can('update', $comment);
+}
+所有请求都继承自Laravel请求基类，可以使用user方法获取当前认证用户，还要注意上面$this->route('comment')方法的调用，赋予用户访问被调用路由URI参数的权限。
+如果返回false，一个包含403状态码的HTTP响应会自动返回而且控制器方法将不会被执行
+4.自定义错误消息
+在FormRequest子类的messages方法中添加
+public function messages() {
+	reutrn [
+		'title.required' => '标题必须',
+		'body.required' => '内容必须',
+	];
+}
+# 自定义验证属性
+attributes方法 替换验证消息中的:attribute部分为自定义属性名
+public function attributes() {
+	return [
+		'email' => 'email addres',
+	];
+}
+# 手动创建验证器
+不想使用请求实例上的validate方法，可以使用Validator门面手动创建一个验证器实例
+$validator = Validator::make($request->all(), [
+	'title' => 'required|unique:posts|max:255',
+	'body' => 'required',
+]);
+if ($validator->fails()) {
+	return redirect('post/create)->withErrors($validator)->withInput();
+}
+传递给make方法的第一个参数是需要验证的数据，第二个参数是要应用到数据上的验证规则
+没有通过验证后，可以使用withErrors方法将错误存放到一次性session中，使用该方法时，$errors变量重定向后自动在视图间共享。withErrors方法接受一个验证器、或者MessageBeg或者PHP数组
+2.自动重定向
+调用Validator::make()->validate()方法
+3.命名错误包
+如果单页面有多个表单，可能需要命名错误的MessageBeg，从而允许为指定表单获取错误信息，只需要传递名称作为第二个参数给withErrors即可
+redirect()->withErrors($validators, 'login')->withInput();
+然后可以从$errors->login->first('email')访问错误信息
+4.验证钩子之后
+验证器允许在验证完成后添加回调
+$validator = Validator::make()
+$validator->after(function($validator)) {
+	if ($this->somethingElseInvalid()) {
+		$validator->errors->add('field', 'something wrong');
+	}
+}
+# 处理错误信息
+调用Validator实例上的errors方法之后，将会获取一个MessageBeg实例，包含多种处理错误信息的便利方法。在所有视图默认有效的$errors变量也是一个MessageBeg实例
+1.获取某字段的第一条错误信息
+$errors = $validator->errors();
+$errors->first('email') // 如果不使用bail作为验证器链的第一个 则会验证所有 可能产生多个错误信息
+2.获取指定字段的所有错误信息
+foreach ($errors->get('email') as $message) {
 
-******************************************
-暂时没看完
-******************************************
+}
+如果是数组表单字段 可以使用*获取所有数组元素错误信息
+foreach ($error->get('attachements.*') as $message) {
 
+}
+3.获取所有字段的错误信息
+foreach ($errors->all() as $message()) {
 
+}
+4.判断是否含有某字段的错误信息
+if ($errors->has('email')) {
+
+}
+# 自定义错误信息
+传递自定义信息作为第三个参数给Validator:make方法
+$messages = [
+	'required' => 'The :attribute field is required!',
+];
+$validator = Validator:make($request->all(), [
+	'title' => 'required|max:255',
+	'body' => 'required',
+], $message);
+:attribute占位符将会被验证时实际的字段名替换，还可以使用其他占位符
+:attribute
+:size
+:other
+:min
+:max
+:values
+2.给定属性指定自定义信息
+$messages = [
+	'email.required' => '邮箱地址不能为空!',
+];
+3.在语言文件中指定自定义消息
+在resource/lang/<lang>/validation.php文件的custom数组中添加
+'custom' => [
+	'email' => [
+		'required' => '邮箱地址不为空',
+	]
+]
+4.在语言文件中指定自定义属性
+resource/lang/<lang>/validation.php的attributes数组 (:attribute占位符使用)
+'attributes' => [
+	'email' => '邮箱地址',
+],
+5.语言文件中指定自定义值
+可能需要将验证消息中的:value部分替换为自定义的表示值
+$request->validate([
+	'credit_card_number' => 'required_if:payment_type,cc'
+])
+payment_type为cc时需要credit_card_number
+在resource/lang/<lang>/validation.php的values数组中修改
+'values' => [
+	'payment_type' => [
+		'cc' => 'credit card,
+	]
+]
+# 验证规则大全
+Accepted
+Active URL
+After (Date)
+After Or Equal（Date）
+Alpha
+Alpha Dash
+Alpha Numeric
+Array
+Bail
+Before (Date)
+Before Or Equal（Date）
+Between
+Boolean
+Confirmed
+Date
+Date Equals
+Date Format
+Different
+Digits
+Digits Between
+Dimensions（图片文件）
+Distinct
+E-Mail
+Exists (Database)
+File
+Filled
+Greater Than
+Greater Than Or Equal
+Image (File)
+In
+In Array
+Integer
+IP Address
+JSON
+Less Than
+Less Than Or Equal
+Max
+MIME Types (File)
+MIME Type By File Extension
+Min
+Not In
+Not Regex
+Nullable
+Numeric
+Present
+Regular Expression
+Required
+Required If
+Required Unless
+Required With
+Required With All
+Required Without
+Required Without All
+Same
+Size
+Starts With
+String
+Timezone
+Unique (Database)
+URL
+UUID
+************************
+详情查看教程
+************************
+# 添加条件规则
+1.存在时验证
+'sometimes|required|email'
+只有存在时才验证
+2.复杂条件验证
+$v->sometimes([], 'required', function($input) {
+	return $input->games >= 100;
+});
+只有在函数返回true的情况下才添加验证规则到指定字段
+# 验证数组输入
+$validator = Validator::make($request->all(), [
+	'photos.profile' => 'required|image',
+]);
+$validator = Validator::make($request->all(), [
+	'persons.*.email' => 'required|image',
+]);
+# 自定义验证规则
+1.使用Rule对象
+php artisan make:rule Uppercase
+class Uppercase extends Rule 
+包含passes和message两个方法
+passes方法接收属性值和名称 并基于属性值是否有效返回true或false
+message方法用于验证失败后返回验证错误消息
+使用trans()方法返回在语言文件中定义的错误信息
+2.使用闭包
+如果需要定义一次性的自定义规则，可以使用闭包替代规则对象 接收属性名、属性值以及验证失败后调用$fail回调
+$validator = Validator::make($request->all(), [
+	'title' => [
+		function($attribute, $value, $fail) {
+			if ($value === 'foo') {
+				return $fail($atribute, ' is invalid.');
+			}
+		},
+	]
+]);
+3.使用扩展
+未看
 ## 异常错误处理
+默认配置了错误和异常处理，在App/Exception/Handler类中触发异常并将响应返回给用户
+# 配置
+在config/app.php中的debug配置项控制浏览器显示的错误信息数量，默认通过.env文件中的环境变量APP_DEBUG进行设置
+本地开发为true，生成环境应为false
+# 异常处理器
+所有异常都由类App/Exceptions/Handler处理，包含两个方法report和render
+1.report方法
+用于记录异常并将其发送给外部服务的BugSnag或Sentry，默认情况下，只是将异常传递给异常被记录的基类。可以按自己的需要记录异常并进行相关处理
+2.全局日志上下文
+如果当前用户ID可用，Laravel会自动将其添加到每一条异常日志信息中作为上下文数据。Handler类的context方法来定义自己的全局上下文数据
+3.report辅助函数
+可能需要报告一个异常并继续处理当前请求。辅助函数report允许使用异常处理器report方法快速报告一个异常而不会渲染错误页。
+public function isValid($value) {
+	try {
+		// 
+	} catch (Exception $e) {
+		report($e);
+		return false;
+	}
+}
+4.通过类型忽略异常
+异常处理器的dontReport属性包含一个不会被记录的异常类型数组，默认情况下，404错误异常不会被写到日志中
+# render方法
+负责将给定异常转化为发送给浏览器的HTTP响应，默认异常被传递给生成响应的基类
+public function render($request, Exception $exception) {
+	if ($exception instanceof CustomException) {
+		return response()->view('errors.custom', [], 500) // 返回resource/views/error/custom.blade.php 没有数据 响应码为500
+	}
+}
+1.可报告 & 可渲染的异常
+可以在异常类中直接定义report和render方法
+class CustomException extends Exception {
+	public function report() {
+	
+	}
+	public function render($request) {
+	
+	}
+}
+当异常存在这些方法时 框架自动调用此方法
+# HTTP异常
+abort辅助函数 会立即引发一个会被异常处理器渲染的异常
+abort($status_code, $response_message)
+可在任何时间点使用
+1.自定义HTTP错误页面
+在resource/views/errors/404.blade.php 文件 
+php artisan vendor:publish --tag=laravel-errors // 发布Laravel的错误页面模板
+
+## 日志
+提供强大的日志服务来记录日志信息到文件、系统错误日志、甚至Slack
+# 配置
+config/logging.php配置，允许配置应用的日志通道。
+默认情况下，使用stack通道来记录日志信息，stack通道用于聚合多个日志通道到单个通道。
+1.配置通道名称
+'stack' => [
+    'driver' => 'stack',
+    'name' => 'channel-name',
+    'channels' => ['single', 'slack'],
+],
+2.有效通道驱动列表
+stack	用于创建「多通道」通道的聚合器
+single	基于单文件/路径的日志通道（StreamHandler）
+daily	基于 RotatingFileHandler 的 Monolog 驱动，以天为维度对日志进行分隔
+slack	基于 SlackWebhookHandler 的 Monolog 驱动
+syslog	基于 SyslogHandler 的 Monolog 驱动
+errorlog	基于 ErrorLogHandler 的 Monolog 驱动
+monolog	Monolog 改成驱动，可以使用所有支持的 Monolog 处理器
+custom	调用指定改成创建通道的驱动
+3.配置single和daily通道
+3个可选配置项
+bubble、permission和locking 
+bubble	表示消息在被处理后是否冒泡到其它通道	true
+permission	日志文件权限	644
+locking	在日志文件写入前尝试锁定它	false
+4.配置slack通道
+需要一个url配置项，需要和配置的Slack团队请求URL向匹配
+# 构建日志堆栈
+1.日志级别
+emergency、alert、critical、error、warning、 notice、info 和 debug
+记录日志
+Log::debug('');
+2.写入日志信息
+Log::emergency($error);
+Log::alert($error);
+Log::critical($error);
+Log::error($error);
+Log::warning($error);
+Log::notice($error);
+Log::info($error);
+Log::debug($error);
+3.上下文信息
+Log::info('', [])
+上下文数据也会以数组形式传递给日志方法，然后和日志信息一起被格式化和显示
+4.写入指定通道
+Log::channel('')->info('', []);
+# 高级Monolog通道自定义
+未看
+
+### 前端开发
+## Blade模板引擎
+Laravel提供的非常简单但功能强大的模板引擎 并不约束使用PHP原生代码，所有Blade视图最终都会被编译为原生PHP代码并缓存直到被修改 位于resources/views目录下
+# 模板继承
+1.定义布局
+最大优点是模板继承和片段组合
+<!-- 存放在 resources/views/layouts/app.blade.php -->
+
+<html>
+    <head>
+        <title>应用名称 - @yield('title')</title>
+    </head>
+    <body>
+        @section('sidebar')
+            这里是侧边栏
+        @show
+
+        <div class="container">
+            @yield('content')
+        </div>
+    </body>
+</html>
+上面包含HTML标记和@section@yield定义了一个内容片段
+定义了布局，就需要生成继承此布局的子页面
+2.继承布局
+定义子页面，使用@extends指令来指定子页面锁继承的布局
+使用@extends指令来指定子页面锁继承的布局继承一个Blade布局的视图可以使用@section指令注入内容到布局定义的内容片段中。
+resources/views/child.blade.php
+@extends('layouts.app')
+@section('title', '')
+@section('sidebar')
+	@parent
+	<p></p>
+@endsection
+@section('content')
+	<p></p>
+@endsection
+@parent追加到子页面中，在渲染时会被布局中的内容替换
+子页面中的@section配合@endsection使用 定义section
+内容布局中的@section配合@show使用 显示子页面中的section
+# 组件　& 插槽
+组件和插槽给内容片段section和布局layout带来便利。
+可复用组件
+resources/views/alert.blade.php
+<div class="alert alert-danger">
+	{{ $slot }}
+</div>
+{{ $slot }}变量包含了想要注入组件的内容 要构建这个组件使用@component指令
+@component('alert')
+	<strong>Whoops!</strong> Something went wrong!
+@endcompoent
+为组件定义多个插槽，可以使用@slot指令命名
+<div class="alert alert-danger">
+	<div class="alert-title">{{ $title }}</div>
+	{{ $slot }}
+</div>
+@component('alert')
+	@slot('title')
+		Forbidden
+	@endslot
+	<strong>Whoops!</strong> Something went wrong!
+@endcompoent
+没有@slot@endslot的内容都被渲染到{{ $slot }}中 指定名称的渲染到对应名称的变量中
+1.传递额外数据到组件
+@component('component_name', [key => value])
+@endcomponent
+2.组件别名
+如果Blade组件存储在views的子目录中，可以使用
+Blade::component('components.alert', 'alert')在服务提供商的boot方法中
+组件设置别名后，可以使用@<component_name>的指令来指定组件
+# 数据显示
+使用
+view('view_name', [key => value]) 
+传递数据到视图
+在blade文件中使用
+{{ $key }} 来显示数据
+{{}}语句已经经过PHP的htmlentities函数处理避免XSS攻击
+可以使用任何PHP代码到{{}}中
+1.显示原生数据
+{{ !! $name !! }} 不经过htmlentities函数处理
+2.渲染JSOn内容
+1)使用json_encode()函数  
+比较麻烦
+2)使用@json指令
+方便
+3.HTML实体编码
+Blade以及辅助函数e会对HTML实体进行双重编码 如果想要禁止双重编码 可以在AppServiceProvider的boot方法中调用
+Blade::withoutDoubleEncoding();
+# Blade & Javascript框架
+@{{}}告诉Blade渲染引擎表达式应该保持原生格式不做改动 @会被去掉 {{ name }}保持不变不会被解析而是交给Javascript框架解析
+1.@verbatim指令
+如果有很大一部分篇幅显示Javascript变量，将这部分放在@verbatim中，就不必在每个{{}}前加上@
+# 流程控制
+1.If语句
+@if (count($arr) === 1)
+@elseif (count($arr) > 1)
+@else
+@endif
+
+@unless(condition) // 除非
+@isset(param) // 
+@empty(param) //
+2.认证指令
+@auth
+	// 用户已登录
+@endauth
+@guest
+	// 用户未登录
+@endguest
+3.Section指令
+@hasSection('') 判断某个section中是否有内容
+4.Switch语句
+@switch($i)
+	@case(1)
+		@break
+	@case(2)
+		@break
+	@default
+@endswitch
+5.循环
+$for ($i = 0; $i < 10; $i++)
+@endfor
+@foreach($arr as $item)
+	
+@endforeach
+@forelse($users as $user)
+	// 不为空的情况下
+@empty
+	// users为空或不存在的情况下
+@endforelse
+@while(true) 
+
+@endwhile
+配合
+@break
+@continue
+使用
+可以使用在
+@continue($user->type === 1)
+@break($user->number === 5)
+直接做判断
+6.$loop变量
+在循环中可以使用$loop变量，提供了一些有用的变量，比如当前讯混的索引，以及是否是最后/最初的迭代
+如果身处嵌套循环可以使用
+$loop->parent变量来访问父级循环
+
+$loop->index	当前循环迭代索引 (从0开始)
+$loop->iteration	当前循环迭代 (从1开始)
+$loop->remaining	当前循环剩余的迭代
+$loop->count	迭代数组元素的总数量
+$loop->first	是否是当前循环的第一个迭代
+$loop->last	是否是当前循环的最后一个迭代
+$loop->depth	当前循环的嵌套层级
+$loop->parent	嵌套循环中的父级循环变量
+
+# 注释
+{{-- --}}
+# PHP
+@php
+	// 原生PHP代码
+@endphp
+# 表单
+1.CRSF字段
+@csrf
+2.方法字段
+@method('PUT')
+# 包含子视图
+@include('shared.errors')
+@include('shared.errors', ['some' => 'data'])
+@includeWhen($boolean, 'shared.errors', ['some' => 'data']) // 判断是否包含子视图
+@includeFirst(['custom.admin', 'admin'], ['some' => 'data']) // 包含数组中的第一个视图
+@include 粗粒度 @component细粒度
+1.为子视图引入设置别名
+Blade::include('includes.input', 'input')
+@include('input', ['some' => 'data'])
+@input(['some' => 'data'])
+2.在视图中渲染集合数据
+使用@each('view.name', $jobs, 'job') 循环引入多个局部视图
+第一个参数是数据或集合中每个元素要渲染的局部视图，第二个参数是希望迭代的数组或集合，第三个参数是要分配给当前视图的变量名。
+@each('view.name', $jobs, 'job', 'view.empty')
+第四个参数则是给定数组或集合为空时渲染的视图
+@each渲染的视图不会从父视图继承变量，如果需要付视图的变量，可以使用@foreach和@include来替代
+# 堆栈
+@push('scripts')
+	<scripts src=""></script>
+@endpush
+允许推送内容到命名堆栈，以便在其他视图或布局中渲染
+@stack('scripts')使用
+如果想要将内容显示在堆栈开头
+@prepend('scripts')
+@endprepend
+# 服务注入
+@inject('metrics', 'App\Service\MetricsService')
+{{ $metrics->monthlyRevenus() }}
+# 扩展Blade
+# 自定义If语句
+
+## 本地化
+1.配置Locale选项
+应用默认语言放在配置文件config/app.php中
+App::setLocale($locale)
+可以配置一个备用语言，当当前语言不包含给定语言时返回 默认语言一样，别用语言也在config/app.php中
+'fallback_locale' => 'en'
+2.判断当前本地语言
+if (App::isLocale('en') {
+
+} else {
+
+}
+# 定义翻译字符串
+/resources
+	/lang
+		/en
+			message.php
+		/zh_cn
+			message.php
+1.使用缩写键
+return [
+	'welcome' => '欢迎',
+]
+2.使用翻译字符串作为键
+使用JSON文件存放在resources/lang目录下
+resources/lang/zh_cn.json
+{
+	'I love programming': '我爱NM',
+}
+# 获取翻译字符串
+__()辅助函数
+__('messages.welcome')
+__('I love programming')
+使用Blade模板引擎，可以使用
+{{ __(messages.welcome }}
+@lang('messages.welcome)
+__()如果翻译字符串不存在会返回传入的键
+@lang不会转义任何输出
+1.替换翻译字符串中的参数
+'welcome' => 'Welcome, :name'
+:name占位符
+使用
+__('messages.welcome', ['name' => 'laravel'])
+占位符的首字母大写则传入的数据首字母大写 如果全部大写则所有字符也大写
+2.复数
+'apples' => 'There is one apple|There are many apples',
+可以创建多个数字区间指定翻译字符串的、更复杂的复数规则
+'apples' => '{0} There are none|[1, 19] There are some|[20, *] There are many',
+使用trans_choice('messages.apple', 10)
+trans_choice('time.minutes_age', 5, ['value' => 5])
+
+## Javascript & CSS脚手架
+提供了有用的Bootstrap和Vue的一些基本脚手架，使用NPM来安装前端包
+# CSS
+提供了干净、优雅的API用于编译SASS或Less
+# Javascript
+引入基本脚手架，使用Vue库可以更轻松编写现代Javascript
+# 移除前端脚手架
+php artisan preset none
+
+# 使用react
+php artisan preset react
+未看完
+## 编译前端资源(laravel mix) 
+未看
+
+### 安全系列
+## 登录认证
+Laravel中实现登录认证非常简单，配置文件位于config/auth.php中
+底层代码中，Larael的认证组件有guards和providers组成。Guard定义用户在每个请求中如何实现认证 Provider定义如何从持久化存储中获取用户信息。支持通过Eloquent和数据库查询两种方式
+Provider获取数据信息，一般是数据库
+Guard把用户登录状态保存起来，一般是Session
+# 数据库考量
+默认情况下，使用Eloquent模型User 使用migrant创建（建表所需已经在database中存在)
+# 快速入门
+提供了几个预置的认证控制器，位于App\Http\Controller\Auth命名空间下。
+RegisterController 处理新用户注册
+LoginController 处理用户登录认证
+ForgetPasswordController 处理重置密码邮件连接
+ResetPasswordController 重置密码逻辑
+1.路由
+php artisan make:auth
+生成布局(resources/views/layouts/下)，注册时登录视图(resources/views/auth下和home.blade.php)，以及所有的认证路由，同时生成HomeController用于处理应用的登录请求
+routes/web.php中添加了
+Auth::routes();
+Route::get('/home', 'HomeController@index')->name('home');
+Auth::routes() 登录注册相关路由
+如果不需要注册Auth::routes(['register' -> false])
+2.视图
+resources/views/auth
+resources/views/layouts 布局文件
+resources/views/home.blade.php
+3.认证
+
+4.自定义路径
+在LoginController/RegisterController/ResetPasswordController中定义redirectTo属性来自定义登录成功之后的跳转路径
+protected $redirect = '/'
+接着需要编辑RedirectAuthenticated中间件的handle方法来使用新的重定向URL
+如果重定向需要自定义生成逻辑可以定义一个redirectTo方法取代redirectTo属性
+protected function redirectTo() {
+	reutrn '/path';
+}
+redirectTo方法优先级高于属性
+5.自定义用户名
+可以在LoginController中定义username方法
+public function username() {
+	return 'username';
+}
+6.自定义Guard
+
+
+
+### 数据库
+## 快速入门
+# 简介
+Laravel让连接不同数据库以及对数据库进行增删改查操作变得非常简单。无论使用原生SQL、还是查询构建起，还是Eloquent ORM。目前支持4种
+1.MySQL
+2.Postgres
+3.SQLite
+4.SQL Server
+# 配置
+应用的数据库配置位于config/database.php（但是数据库用户及密码等敏感信息位于.env文件）在该文件中可以定义所有的数据库连接，并指定哪个连接是默认连接。提供了所有支持数据库系统的配置实例。
+默认情况下使用MySQL作为数据库引擎
+1.SQLite配置
+2.读写分离
+'mysql' => [
+	'read' => [
+		'host' => ['192.168.1.1', '192.169.2.1'],
+	],
+	'write' => [
+		'host' => '192.168.1.2',
+	],
+	'sticky'    => true,
+    'driver'    => 'mysql',
+    'database'  => 'database',
+    'username'  => 'root',
+    'password'  => '',
+    'charset' => 'utf8mb4',
+    'collation' => 'utf8mb4_unicode_ci',
+    'prefix'    => '',
+]
+多个host会随机选择一个进行读写
+3.sticky项
+是一个可选配置，可用于在当前请求生命周期内允许立即读取写入数据库的记录。如果启动并且写操作在当前声明周期内发生，则后续所有读操作都会使用这个写操作（必须在同一个声明周期中）
+4.使用不同数据库连接
+使用多个数据库连接的时候，可以通过DB门面上的connection方法访问不同连接。传递给connection方法的name对应配置文件config/database.php中设置的某个连接
+$users = DB::connection('read')->select(...);
+甚至可以指定数据库和连接名 使用::分隔
+$users = DB::connection('mysql::read')->select(...);
+还可以使用连接实例上的getPdo方法访问底层原生的PDO实例
+$pdo = DB::connection('read')->getPdo();
+# 运行原生SQL查询
+配置好数据库连接之后，就可以使用DB门面来运行查询。DB门面为每种操作提供了相应的方法：select、update、insert、delete和statement
+1.运行select查询
+$users = DB::select('select * from users where active = ?', [1]);
+第一个参数是原生SQL语句，?表示占位符，第二个参数则是绑定到查询的参数绑定 参数绑定可以避免SQL注入攻击
+select方法以数组形式返回结果集，数组中的每个结果都是一个PHPstdClass对象
+2.使用命名绑定
+DB:select('SELECT * FROM users WHERE id = :id', ['id' => 1]);
+3.运行插入语句
+DB::insert('INSERT INTO users(id, name) VALUES(?, ?)', [1, 'A'])
+4.运行更新语句
+DB::update('UPDATE users SET votes = 100 WHERE name = ?', ['A'])
+5.运行删除语句
+DB::delete('DELETE FROM users WHERE id = ?', [1])
+6.运行通用语句
+DB::statement('DTOP TABLE users');
+# 监听查询事件
+如果想要获取每次SQL语句的执行，可以使用listen方法，对查询日志和调试非常有用。可以在服务提供商中注册查询监听器
+class AppServiceProvider extends ServiceProvider {
+	public function boot() {
+		DB::listen(function($query) {
+			// 
+		});
+	}
+}
+# 数据库事务
+开启使用使用DB门面的transaction方法，无需手动回滚或提交。当事务闭包中抛出异常，事务自动回滚，如果闭包执行成功则自动提交
+DB::transaction(function() {
+	DB::table('users')->update(['votes' => 1]);
+	DB::table('posts')->delete();
+});
+1.处理死锁
+transaction接收一个可选参数作为第二个参数，用于定义死锁发生时事务最大的重试次数。
+2.手动使用事务
+DB::beginTransaction()
+DB::rollback()
+DB::commit()
+## 查询构建器
+# 简介
+数据库查询构建器提供了一个方便的流接口用于创建和执行数据库查询。查询构建器可以用于执行应用中绝大部分数据库操作，并且能够在Laravel支持的所有数据库系统的上工作。
+也使用PDO参数绑定来避免SQL注入攻击，不再需要过滤以绑定方式传递的字符串。
+# 获取结果集
+1.从一张表中取出所有行
+DB门面的table方法开始，table方法为给定表返回一个流式查询构建器实例。允许在查询上链接多个约束条件并返回最终查询结果。
+然后使用get()方法取出所有行
+DB::table('users').get()
+2.从一张表中取出一行/一列
+可以使用first()方法，返回单个stdClass对象
+$user = DB::table('users')->where('id', 1)->first()
+如果需要指定查询列
+DB::table('users')->where('name', 'A')->value('email')->first()
+3.获取数据列值列表
+使用pluck方法
+$titles = DB::table('roles').pluck('title')
+foreach($titles as $title) {
+	echo $title;
+}
+可以指定键值(必须是该表中其他列）
+$titles = DB::table('roles').pluck('title', 'name');
+foreach($titles as $name => $title) {
+	echo $name.'-'.$title;
+}
+4.组块结果集
+如果需要处理成千上百条数据库记录，可以考虑使用chunk方法，该方法一次获取结果集的一小块，然后传递每一小块数据到闭包函数进行处理。
+DB::table('users')->orderBy('id')->chunk(100, function($users) {
+	foreach($users as $user) {
+		//
+	}
+});
+可以在闭包函数中return false来终止组块运行
+最好使用chunkById方法自动基于记录的主键对结果集进行分页
+DB::tables('users').chunkById(100, function($users) {
+	//
+});
+5.聚合函数
+count()
+max()
+min()
+avg()
+sum()
+6.判断记录是否存在
+exists()
+doesntExist()
+# 查询
+1.指定查询子句
+不需要查询所有列 使用select方法指定查询子句
+DB::table('users').select('name', 'email')->get()
+distinct()方法允许强制查询返回不重复的结果集
+DB::table('users').distinct()->get()
+如果已有一个查询构建器实例并希望添加一个查询列 可以使用addSelect()方法
+$query = DB::table('users')->select('name');
+$users = $query->addSelect('email')->get()
+2.原生表达式
+使用raw()方法
+DB::table('users')->select(DB::raw('count(*) AS user_count, status'))->groupBy('status')->get();
+3.原生方法
+selectRaw()方法
+DB::table('users')->selectRaw('price * ? AS price_with_tax', [1.0825])->get();
+whereRaw() orWhereRaw()
+DB::table('users')->whereRaw('price > IF(state = 'TX', ?, 100)', [200])->get()
+havingRaw orHavingRaw
+$orders = DB::table('orders')
+                ->select('department', DB::raw('SUM(price) as total_sales'))
+                ->groupBy('department')
+                ->havingRaw('SUM(price) > 2500')
+                ->get();
+orderByRaw
+$orders = DB::table('orders')
+                ->orderByRaw('updated_at - created_at DESC')
+                ->get();
+# 连接
+1.内连接 Inner Join
+DB::table('users')->join('contacts', 'users.id', '=', 'contacts.user_id')
+2.左/右连接
+DB::table('users')->leftJoin('posts', 'users.id', '=', 'posts.user_id')
+DB::table('users')->rightJoin('posts', 'users.id', '=', 'posts.user_id')
+3.交叉连接
+DB::table('users')->crossJoin('colours');
+4.高级连接语句
+DB::table('users')->join('contacts', function($join) {
+	$join.on('users.id', '=', 'contacts.user_id');
+})
+可以使用where和orWhere方法 用于列和值的比较
+DB::table('users')->join('contacts', function($join) {
+	$join.on('users.id', '=', 'contacts.user_id')
+		.where('contacts.user_id', '>', 5);
+})
+5.子查询连接
+将查询和子查询进行链接，每个方法都接受3个参数-子查询，表别名和关联字段的闭包
+$latestPosts = DB::table('posts')
+                   ->select('user_id', DB::raw('MAX(created_at) as last_post_created_at'))
+                   ->where('is_published', true)
+                   ->groupBy('user_id');
+
+$users = DB::table('users')
+        ->joinSub($latestPosts, 'latest_posts', function($join) {
+            $join->on('users.id', '=', 'latest_posts.user_id');
+        })->get();
+6.联合
+$first = DB::table('users')->whereNull('first_name')
+$users = DB::table('users')->whereNull('last_name')->union($first)->get();
+# Where子句
+1.简单Where子句
+where方法可以添加where子句到查询中，调用where最基本的方式需要传递三个参数，第一个是列名，第二个参数任意一个数据库系统支持的操作符，第三个参数是列要比较的值
+DB::table('users')->where('votes', '=', 100)->get()
+默认判断是否相同 可以省略=，将数值作为第二个参数
+可以传递一个数组到where函数中
+DB:table('users')->where([
+	['status' '=', '1'],
+	['subscribed', '<>', '1'],
+])->get();
+2.or语句
+orWhere方法
+$users = DB::table('users')
+                ->where('votes', '>', 100)
+                ->orWhere('name', 'John')
+                ->get();
+3.更多where子句
+whereBetween('votes', [1, 100]) // 在范围内
+whereNotBetween('votes', [1, 100]) // 不再范围内
+whereIn('id', [1, 2, 3]) // 在数组中
+whereNotIn('id', [1, 2, 3]) // 不在数组中
+whereNull('updated_at') // 给定列的值为Null
+whereNotNull('updated_at') // 给定列的值不为Null
+whereDate('craeted_at', '2019-09-09')
+whereMonth('craeted_at', '9')
+whereDay('craeted_at', '9')
+whereYear('craeted_at', '2019')
+whereTime('craeted_at', '=', '11:20')
+whereColumn('first_name', 'last_name') // 两个字段是否相同 可以传递比较符到这个方法 可以传入一个数组到这个方法 实际sql用and连接
+whereColumn([
+	['first_name', '=', 'last_name'],
+	['updated_at', '>', 'created_at'],
+])
+4.参数分组
+使用闭包
+DB::table()->where(function($query) {
+	$query->where()->where();
+})->orWhere(function($query) {
+	$query->where()->where();
+})->get();
+5.where exists子句
+whereExists方法允许编写where existsSQL子句，接受一个辩驳参数，获取一个查询构建器实例从而允许定义防止在exists子句中的查询
+DB::table('uses')->whereExists(function($query) {
+	$query->select(DB:raw(1))->from('orders')->whereRaw('orders.user_id = users.id');
+})->get();
+6.JSON where子句
+还支持提供JSON字段类型的数据库
+未看完
+# 排序、分组、限定
+1.orderBy
+orderBy('name', 'desc')
+2.latest/oldest
+通过日期对结果集进行排序
+latest()->first()
+3.inRandomOrder
+用于对结果集进行随机排序
+4.groupBy/having
+对结果集进行分组
+DB::table('users')->groupBy('account_id')->having('account_id', '>', 100)->get();
+5.skip/take
+限定查询返回结果集的数目
+DB::table('users')->skip(10)->take(5)->get()
+作为替代可以使用limit offset
+DB::table('users')->offset(10)->limit(5)->get()
+# 条件子句
+某些条件为true的时候才将条件子句应用到查询 使用when方法
+DB::table('users')->when($role, function($query) use ($role) {
+	return $query->where('role_id', $role);
+});
+when方法只有在第一个参数为true时才执行第二个参数传入的闭包
+还可以传入第三个参数闭包 作为第一个参数为false时执行
+# 插入
+DB::table('users')->insert([
+	'name' => '',
+	'email' => '',
+]);
+可以传入二维数组 一次插入多条数据
+DB::table('users')->insert([
+	[
+		'name' => '',
+		'email' => '',
+	],
+	[
+		//
+	]
+]);
+1.自增ID
+需要使用insertGetId()方法来插入记录并返回ID
+# 更新
+DB::table('users')->here('id', 1)->update([
+	'name' => '',
+])
+1.更新或插入
+DB::table('users')
+    ->updateOrInsert(
+        ['email' => 'john@example.com', 'name' => 'John'],
+        ['votes' => '2']
+    );
+会先尝试使用第一个参数数组作为where子句的条件第二个参数为更新的数据。如果更新不存在，则合并两个数组做插入
+2.更新JSON字段
+未看
+3.增加/减少
+DB::table('users')->increament('votes')
+DB::table('users')->increament('votes', 5)
+DB::table('users')->decreament('votes')
+DB::table('users')->decreament('votes', 5)
+第二个参数可选，默认+/-1
+还可以传入第三个数组参数 作为额外更新
+DB::table('users')->increment('votes', 1, ['name' => 'John']);
+# 删除
+DB::table('users')->delete()
+DB::table('users')->where('id', 1)->delete()
+# 悲观锁 & 乐观锁
+悲观锁 每次获取数据就会上锁
+乐观锁 获取数据不会上锁，只有在更新时才会查看是否有修改过
+1.悲观锁
+DB::table('users')->where('votes', '>', 100)->sharedLock()->get();
+DB::table('users')->where('votes', '>', 100)->lockForUpdate()->get();
+2.乐观锁
+大多基于数据版本Version，给表加一个Version字段，更新即+1
+
+## 分页
+# 基本使用
+1.基于查询构建器进行分页
+使用构建器或Eloquent查询提供的paginate方法，唯一参数是每页显示数量，会根据HTTP请求查询字符串参数page的值判断，自动检测并自动插入分页器生成的链接中
+groupBy的分页操作不能被Laravel有效执行，如果需要使用groupBy，推荐手动查询数据库然后创建分页器
+简单分页
+simplePaginate() 不产生页码时使用
+2.基于Eloquent结果集进行分页
+App\Models\User::paginate(15)
+App\Models\User::simplePaginate(15)
+3.手动创建分页器
+Illuminate\Pagination\Paginator 不需要传入结果集数据项的总数 对应simplePaginate方法
+Illuminate\Pagination\LengthAwarePaginator 需要传入结果集数据项的总数 对应paginate方法
+# 显示分页结果
+@foreach($users as $user) 
+	{{ $user->name }}
+@endforeach
+{{ $users->links() }}
+links方法将结果集中的其他页面链接渲染出来，每个连接以及包含了page查询字符串变量
+1.自定义分页链接
+withPath方法允许生成分页链接时自定义分页器使用的URL
+$users->withPath('custom/url');
+此时分页器生成形如http://example.com/custom/url?page=N
+2.添加参数到分页链接
+{{ $users->appends(['sort' => 'votes'])->links()
+append()方法将 &key=value添加到url中
+想要添加类似#foo的哈希片段，使用fragment方法
+$users->fragment('foo')->links()
+3.调整分页链接窗口
+可以控制每个分页URL[窗口](分页器)中除当前页面链接之外显示几个额外链接，默认是3个。可以使用onEachSide方法来修改这个默认值
+{{ $users->onEachSide(5)->links() }}
+4.将结果转化为JSON
+分页器结果类实现了JsonableInterface契约并提供了toJson方法
+从分页器转化来的JSON包含元信息如total、current_page、last_page等等
+例子
+{
+   "total": 50,
+   "per_page": 15,
+   "current_page": 1,
+   "last_page": 4,
+   "first_page_url": "http://laravel.app?page=1",
+   "last_page_url": "http://laravel.app?page=4",
+   "next_page_url": "http://laravel.app?page=2",
+   "prev_page_url": null,
+   "path": "http://laravel.app",
+   "from": 1,
+   "to": 15,
+   "data":[
+        {
+            // Result Object
+        },
+        {
+            // Result Object
+        }
+   ]
+}
+# 自定义分页视图
+{{ $paginator->links('view.name', ['foo' => 'bar'] }}
+自定义分页视图的最简单方式是使用vendor:publish命令导出视图文件到resources/views/vendor目录
+php artisan vendor:publish --tag=laravel-pagination
+会将视图放到resources/views/vendor/pagination目录 default.blade.php文件对于默认的视图文件 编辑即可自定义
+想要指定其他文件作为默认分页视图，在AppServiceProvider中使用分页器的defaultView和DefaultSimpleView方法
+public function boot() {
+	Paginator::defaultView('pagination::view');
+	Paginator::defaultSimpleView('pagination::view');
+}
+# 分页器实例方法
+$results->count()			获取当前页的项目数
+$results->currentPage()		获取当前页的页码
+$results->firstItem()		获取结果集分片中第一项的编号
+$results->getOptions()		获取分页选项
+$results->getUrlRange($start, $end)	创建分页 URL 的范围
+$results->hasMorePages()	判断是否还有足够多的项目用于分页
+$results->lastItem()		获取结果集分片中最后一项的编号
+$results->lastPage()		获取最后一页的页码(使用 simplePaginate 时无效)
+$results->nextPageUrl()		获取下一页的 URL
+$results->onFirstPage()		判断是否在第一页
+$results->perPage()			每页显示的项目数
+$results->previousPageUrl()	获取上一页的 URL
+$results->total()			判断存储器中匹配的所有项目总数(使用 simplePaginate 时无效)
+$results->url($page)		获取给定页码的分页 URL
+
+## 迁移
+# 生成迁移
+php artisan make:migration create_users_table
+--create 	是否创建一个新的数据表
+--table 	指定表名
+# 迁移结构
+up方法用于新增表、列或索引到数据库
+down方法则是up的逆操作
+# 运行迁移
+php artisan migrate
+php artisan migrate --force // 强制运行迁移 而不提示
+# 回滚迁移
+php artisan migrate:rollback // 回滚上一批迁移操作
+php artisan migrate:rollback --step=5 // 回滚五条迁移
+php artisan migrate:reset // 回滚所有的应用迁移
+
+*
+未看完
+*
+
+## 数据填充
+未看
+
+## Redis
+composer require predis/predis
+还可以通过PECL安装PHP扩展PhpRedis，安装麻烦但是性能好
+# 配置
+也在config/database.php中
+# 与Redis交互
+使用Redis门面 基本Redis中的命令都有相同名的门面方法
+Redis::get() // Redis中的get命令
+Redis::set()
+Redis::lrange()
+还可以使用
+Redis::command('lrange', ['name', 5, 10]);
+直接发送命令到Redis
+2.使用多个Redis连接
+$redis = Redis::connection('')
+3.管道命令
+Redis::pipeline(function ($pipe) {
+	for ($i = 0; $i < 1000; $i++) {
+		$pipe->set("key:$i", $i);
+	}
+})
+# 发布/订阅
+Redis::subscribe('channel_name', function($meesage) {
+
+});
+第一个参数是订阅的频道名 第二个则是收到发布的消息后出发的回调函数
+Redis::publish('channel_name', $message)
+
+### Eloquent ORM
+## 快速入门
+# 简介
+内置的Eloquent提供了一个美观的、简单的与数据库打交道的ActiveRecord实例，每张表都对应一个与该表进行交互的模型（Model）。通过模型类，可以对数据表进行查询、插入、更新和删除等操作
+# 定义模型
+php artisan make:model Flight
+默认在app目录下
+如果希望在生成模型时生成数据库迁移，可以使用--migration或者-m选项
+# Eloquent模型约定
+1.表名
+默认使用小写模型类名的复数格式作为表名 Flight默认使用flights作为表名
+可以使用table属性自定义表名
+$table = 'my_flight'
+2.主键
+默认使用主键名id，可以使用primaryKey属性自定义主键名
+Eloquent默认主键字段是自增长的整数数据，会被自动转化为int类型。如果想要使用非自增或非整型主键，应该将$incrementing属性设置为false 如果不是整型 还需要将$keyType设置为string
+$incrementing = false;
+$keyType = string;
+3.时间戳
+默认Eloquent机器created_at和updated_at已经存在于数据表中，如果不想要Laravel自动管理的数据列，在模型类中设置$timestamps属性为false
+$timestamps = false;
+如果需要自定义时间戳格式，使用dateFormat属性，决定日期如何存储到数据库中，以及模型被序列化为数组或JSON时日期的格式
+$dateFormat = 'U';
+如果需要自定义用于存储时间戳的字段名称 可以设置CREATED_AT和UPDATED_AT常量
+const CREATED_AT = 'creation_date';
+const UPDATED_AT = 'last_update';
+4.数据库连接
+为模型指定不同的连接使用connection属性
+$connection = 'mysql';
+5.默认属性名
+如果想要定义某些模型属性的默认值 可以在模型上定义attributes属性
+$attributes = [
+	'delayed' => false,
+]
+# 获取模型
+创建完模型及其关联的数据表后，就可以从数据库中获取数据了。将Eloquent模型看做功能强大的查询构建器。
+例如
+Flight::all()
+1.添加额外的月数
+Flight::where('active', 1)->orderBy('name', 'desc')->take(10)->get()
+Eloquent模型本质上就是查询构建器 可以使用查询构建器的所有方法
+2.刷新模型
+可以使用fresh和refresh方法刷新模型，fresh方法将会从数据库中重新获取模型，已存在的模型实例不受影响
+$flight = Flight::where('number', 'FR 900')->first();
+$freshFlight = $flight->fresh()
+refresh方法使用数据库中后去的新数据重新水合现有模型，所有加载的关联关系也会被重新刷新
+3.集合
+Eloquent中获取多个结果的方法（比如all和get）而言，其返回值是Collection的一个实例，Collection类提供了多个有用的函数来处理Eloquent结果集
+4.组块结果集
+如果需要处理数据量很大的Eloquent结果集，可以使用chunk方法，获取一个指定数量的模型组块，并将其填充到给定闭包进行处理。可以减少内存消耗
+Flight::chunk(100, function($flights) {
+	//
+});
+5.使用游标
+cursor一次只执行单个查询，在处理大批量数据时，cursor方法可大幅度减少内存消耗
+foreach (Flight::all()->cursor() as $flight) {
+	//
+}
+# 获取单个模型/聚合结果
+Flight::find(1) // 通过主键查找
+Flight::where('active', 1).first() // 结果集的第一条数据
+还可以传递主键数组来调用find方法，这将会返回匹配记录集合
+Flight::find([1, 2, 3])
+1.Not Found异常
+在模型找不到时抛出异常
+findOrFail()
+firstOrFail()
+没有查询到结果时会抛出NotFoundException
+如果没有捕获异常则会返回404给用户。
+2.获得聚合结果
+count()
+min()
+max()
+sum()
+avg()
+# 插入/更新模型
+设置模型的属性 然后调用save方法
+1.更新
+save方法还可用于更新数据库中已存在的模型，先获取，设置更新值，再调用save方法 同时updated_at字段也会被同时更新
+2.批量更新
+Flight::where('active', 1)->update(['delayed' => 1]);
+批量更新时，saved和updated模型事件没有触发，因为没有先获取模型
+3.批量赋值
+可以使用create方法保存一个新的模型，该方法返回被插入的模型实例。但是，在此之前，需要指定模型的fillable或guarded属性，因为所有Eloquent模型都通过批量赋值进行保护，这两个字段分别定义
+fillable  可以批量赋值
+guarded	  受保护，不能显式的批量赋值
+Flight::create('name' => 'Flight 10'])
+Flight::fill(['name' => 'Flight 22]) // 已有模型实例 填充数据
+4.黑名单属性
+$guarded包含不想被赋值的属性数组，不被包含在其中的属性都是可以被赋值的。和$fillable两个只能选择一个而不能一起使用
+5.其他创建方法
+firstOrCreate/firstOrNew
+firstOrCreate 尝试使用给定的属性/值对在数据库中查找记录，如果没有找到的话通过给定属性创建一个新的记录
+firstOrNew 尝试使用给定的属性/值对在数据库中查找记录，如果没有找到的话通过给定属性创建一个新的对象实例，并未持久化到数据库中，需要手动调用save保存到数据库
+6.updateOrCreate
+使用给定键值对查询记录，有则使用给定值更新字段，没有则合并条件和更新值然后使用合并后的数组新建记录
+# 删除模型
+$flight = Flight::find(1)
+$flight->delete()
+1.通过主键删除模型
+Flight::destory([1, ,2, 3])
+2.通过查询删除模型
+$deleteRows = Flight::where('active', 0)->delete()
+3.软删除
+软删除并没有从数据库中物理删除，而是设置一个deleted_at属性并插入数据库，如果有一个非空的deleted_at值，就表示已经软删除了 启动软删除需要use SoftDeletes并添加deleted_at到$dates属性
+use SoftDeletes;
+$dates = [
+	deleted_at,
+	
+];
+$table->softDeletes() // 迁移中
+是否软删除通过trashed方法
+4.查询被软删除的模型
+1）包含软删除的模型
+Flight::withTrashed()
+2）值获取软删除的模型
+Flight::onlyTrashed()
+3）恢复软删除的模型
+$flight->restore()
+4）永久删除模型
+$flight->forceDelete()
+# 查询作用域
+1.全局作用域
+为给定模型的所有查询添加条件约束 自带的软删除功能就使用全局作用域从数据库中获取未软删除的模型
+1）编写全局作用域
+定义Scope接口的类，实现apply方法
+class AgeScope implements Scope {
+	public function apply(Builder $builder, Model $model) {
+		return $builder->where('', '', '');
+	}
+}
+2.应用全局作用域
+给定模型的boot方法中添加addGlobalScope()方法
+public User extends Model {
+	public function boot() {
+		parent::boot();
+		static::addGlobalScope(new AgeScope);
+	}
+}
+3.匿名的全局作用域
+public User extends Model {
+	public function boot() {
+		parent::boot();
+		static::addGlobalScope('age', function(Builder $builder) {
+			$builder->where('', '', '');
+		});
+	}
+}
+4.移除全局作用域
+User::withoutGlobalScope()->get()
+# 本地作用域
+允许定义通用的约束集合以便在应用中复用，在对应Eloquent模型方法前加上scope前缀
+public function scopePopular($query) {
+	return $query->where('votes', '>', 100);
+}
+public function scopeActive($query) {
+	return $query->where('active', 1);
+}
+1.使用本地作用域
+$users = User::popular()->active()->get();
+可以使用orWhere配合闭包
+$users = User::popular()->orWhere(function(Builder $query) {
+	$query->active();
+})->get();
+2.动态作用域
+需要接受参数的作用域，只需要将额外的参数添加到作用域即可。作用域参数应该被定义在$query之后
+public function scopeOfType($query, $type) {
+	return $query->where('type', $type);
+}
+# 比较模型
+使用is方法可以快速验证两个模型是否拥有相同的主键、数据表以及数据库连接
+if ($post->is($anotherPost)) {
+	//
+}
+# 事件
+Eloquent模型可以触发事件，允许在模型生命周期中的多个时间点调用如下方法
+retrieved			获取已存在的数据模型时触发
+creating			首次保存时
+created				首次保存时
+updating			已存在 更新时
+updated				已存在 更新时
+saving				保存更新时
+saved				保存更新时
+deleting			删除时
+deleted				删除时
+restoring			restore方法 刷新数据模型时
+restored			刷新数据模型时
+事件允许在一个指定模型类每次保存或更新的时候执行代码
+使用$dispatchesEvents属性
+$dispatchesEvents = [
+	'saved' => UserSaved::class,
+];
+# 观察者
+1.定义观察者
+给定模型监听多个事件，可以使用观察者来对所有监听器分组到一个类中，观察者类拥有反射想要监听的Eloquent事件对应的方法名。每个方法接受模型作为唯一参数
+php artisan make:observer UserObserver --model=User
+观察者会生成到App/Observers目录下
+注册观察者，需要在某个服务提供商的boot方法中注册
+public function boot() {
+	User::observe(UserObserver::class);
+}
+
+## 关联关系
+一对一
+一对多
+多对多
+远层一对一
+远层一对多
+一对一（多态）
+一对多（多态）
+多对多（多态）
+# 定义关联关系
+1.一对一
+加入User模型都有一个与之相关的Phone模型，想要定义这种关联关系，需要将phone方法置于User模型中，phone方法会调用HasRelationships中的hasOne方法并返回其结果
+class User extends Model {
+	public function phone() {
+		return $this->hasOne('App\Models\Phone');
+	}
+}
+关联关系定义之后，可以使用动态属性获取关联记录。动态属性允许访问关联方法，向属性一样。
+$phone = User::find(1)->phone;
+默认关联关系的外键基于模型名称，Phone中有一个user_id外键。如果需要覆盖，可以传递第二个参数作为外键名到hasOne方法中
+return $this->hasOne('App\Models\Phone', 'foreign_key');
+此外，还需要一个与外键匹配的主键，默认是id。如果想要覆盖，将主键名作为第三个参数传入hasOne方法
+return $this->hasOne('App\Models\Phone', 'user_id', 'id')
+. 定义相对关联
+可以从User中访问Phone模型，也可以从Phone中获取User。可以使用belongsTo方法定义与hasOne关联关系相对的关联
+class Phone extends Model {
+	public function user() {
+		return $this->belongsTo('App\Models\User');
+	}
+}
+同样的可以将外键名作为第二个参数，主键名作为第三个参数传入belongsTo方法传入
+2.一对多
+使用hasMany方法
+class Post extends Model {
+	public function comments() {
+		return $this->hasMany('App\Models\Comment');
+	}
+}
+也可以将外建明、主键名作为第二、三个参数传入方法
+Post::find(1)->comments
+关联同时也是查询构建器
+Post::find(1)->comments()->where('')->first();
+.一对多（逆向）
+class Comment extends Model {
+	public function post() {
+		return $this->belongsTo('App\Models\Post');
+	}
+}
+也可以将外建明、主键名作为第二、三个参数传入方法
+3.多对多
+有三张表users roles role_user(含有user_id role_id)两个外键
+class Role extends Model {
+	public function users() {
+		return $this->belongsToMany('App\Models\User')
+	}
+}
+可以传入中间表名作为第二个参数 本表的外键名和关联模型表的外键名作为第三四个参数
+动态属性也是一个查询构建器
+.定义相对的关联关系
+class User extends Model {
+	public function roles() {
+		return $this->belongsToMany('App\Models\Role');
+	}
+}
+.获取中间表字段
+使用模型上的pivot属性访问中间表
+默认只有主键才能用在pivot上，如果包含额外的属性，需要在定义关联关系是指定
+$this->belongsToMany()->withPivot('column1', 'columns2')
+如果想要pivot表自动包含created_at和updated_at，需要在定义关联关系时指定
+$this->belongsToMany()->withTimestamps();
+.自定义privot属性名
+$this->belongsToMany()->as('middle_table_name');
+.通过中间表字段过滤关联关系
+belongsToMany()->wherePivot('approved', 1)
+belongsToMany()->wherePivotIn('priority', [1, 2])
+4.自定义中间表模型
+$this->belongsToMany()-using('App\Pivots\UserRole')
+中间表模型需要继承自Pivot类
+class UserRole extends Pivot {
+	
+}
+.自定义中间模型和自增ID
+protected incrementing = true;
+5.远层一对一
+通过单移中间关系链接模型。比例，供应商对应一个用户，用户有一个用户历史记录，那么供应商就可以通过用户来访问用户的历史
+class Supplier extends Model {
+	public function userHistory() {
+		return $this->hasOneThrough('App\Models\Histroy', 'App\Models\User');
+	}
+}
+第一个参数远层模型
+第二个参数中间模型
+第三个参数中间表模型对应本模型的外键
+第四个参数远层模型对应中间表模型的外键
+第五个参数本模型的主键
+第六个参数中间表模型的主键
+6.远层一对多
+比如Country模型通过中间表User模型可能拥有多个Post模型
+class Country extends Model {
+	public function userPosts() {
+		return $this->hasManyThrough('App\Models\Post', 'App\Models\User')
+	}
+}
+第一个参数远层模型
+第二个参数中间模型
+第三个参数中间表模型对应本模型的外键
+第四个参数远层模型对应中间表模型的外键
+第五个参数本模型的主键
+第六个参数中间表模型的主键
+# 多态关联
+1.一对一 （多态）
+Post和User可以共享与Image模型的多态关联
+1)表结构
+posts
+    id - integer
+    name - string
+
+users
+    id - integer
+    name - string
+
+images
+    id - integer
+    url - string
+    imageable_id - integer
+    imageable_type - string
+2)模型结构
+class Image extends Model
+{
+    /**
+     * Get all of the owning imageable models.
+     */
+    public function imageable()
+    {
+        return $this->morphTo();
+    }
+}
+
+class Post extends Model
+{
+    /**
+     * Get the post's image.
+     */
+    public function image()
+    {
+        return $this->morphOne('App\Image', 'imageable');
+    }
+}
+
+class User extends Model
+{
+    /**
+     * Get the user's image.
+     */
+    public function image()
+    {
+        return $this->morphOne('App\Image', 'imageable');
+    }
+}
+3)获取关联关系
+Post::find(1)->image
+Image::find(1)->imageable // 将返回User或Post类的实例
+2.一对多（多态）
+1)表结构
+posts
+id - integer
+title - string
+    body - text
+
+videos
+  id - integer
+  title - string
+  url - string
+
+comments
+    id - integer
+    body - text
+    commentable_id - integer
+    commentable_type - string
+2)模型结构
+class Comment extends Model {
+	public function commentable() {
+		return $this->morph();
+	}
+}
+class Post extends Model {
+	public function comments() {
+		return $this->morphMany('App\Models\Comment', 'commentable');
+	}
+}
+class Video extends Model {
+	public function comments() {
+		return $this->morphMany('App\Models\Comment', 'commentable');
+	}
+}
+3.多对多（多态）
+1)表结构
+posts
+    id - integer
+    name - string
+
+videos
+    id - integer
+    name - string
+
+tags
+    id - integer
+    name - string
+
+taggables
+    tag_id - integer
+    taggable_id - integer
+    taggable_type - string
+2)模型结构
+class Post extends Model
+{
+    /**
+     * 获取指定文章所有标签
+     */
+    public function tags()
+    {
+        return $this->morphToMany('App\Tag', 'taggable');
+    }
+}
+
+class Tag extends Model
+{
+    /**
+     * 获取所有分配该标签的文章
+     */
+    public function posts()
+    {
+        return $this->morphedByMany('App\Post', 'taggable');
+    }
+
+    /**
+     * 获取分配该标签的所有视频
+     */
+    public function videos()
+    {
+        return $this->morphedByMany('App\Video', 'taggable');
+    }
+}
+# 关联查询
+User::find(1)->posts()->where('')->get();
+1.关联方法 vs 动态属性
+2.查询存在的关联关系
+Post::has('comments')->get();
+3.无关联结果查询
+Post::doesntHave('comments')->get()
+
+
+# 渴求式加载
+以属性方式访问Eloquent关联关系时，是懒惰式加载的。
+1.渴求式加载多个关联关系
+Book::with('author', 'publisher')->get()
+2.嵌套渴求式加载
+Book::with('author.contacts')->get()
+3.渴求式加载指定字段
+Book::with('author:id,name')->get()
+
+# 插入&更新关联模型
+1.save方法
+$post->comments->save()
+$post->comments->saveMany()
+2.递归保存模型&关联关系
+$post = Post::find(1)
+$post->comments[0]->message = '';
+$post->comments[0]->author->name = '';
+$post->push();
+3.create方法
+$post->comments->create()
+$post->comments->createMany()
+4.从属关联关系
+$account = Account::find(10)
+$user->account()->associate($account) // 设置外键
+$user->save() 
+$user->account()->dissociate() // 将外键设置为null
+5.默认模型
+belongsTo关联关系允许在给定关联关系为null的情况下定义一个默认的返回模型，称为空对象模式。
+public function user() {
+	return $this->belongsTo('App\Models\User')->withDefault(function($user) {
+		$user->name = '';
+	});
+}
+# 多对多关联
+$user = User::find(1);
+$user->roles->attach($roleId);
+$user->roles->attach($roleId, [$key => $value]);
+$user->roles->detach($roleId) // 清除指定角色
+$user->roles->detach() // 清除所有角色
+
+
+## 集合
+Eloquent返回的包含多条记录的结果集都是Collection对象的实例。包括通过get方法或者通过访问关联关系获取的结果。
+# 可用方法
+1.集合基类
+所有Eloquent集合继承自Laravel集合对象基类
+集合方法查看文档
+# 自定义集合
+重写模型类上的newCollection方法
+
+
+## 访问器和修改器
+允许在获取模型属性或设置其值时格式化Eloquent属性。
+# 访问器 & 修改器
+1.定义访问器
+需要在模型中创建一个getFooAttribute方法，其中Foo是想要访问的字段名（使用驼峰式命名规则）。
+public function getFullNameAttribute() {
+	return "{$this->first_name} {$this->last_name}";
+}
+2.定义修改器
+定义setFooAttribute方法，Foo是想要修改的字段（采用驼峰命名规则）
+public function setFirstNameAttribute($value) {
+	$this->attributes['first_name'] = strtolower($value);
+}
+# 日期修改器
+默认情况下，Eloquent将会转换日期为Carbon实例，继承自PHP原生的Datetime类。
+如果字段是日期格式时，可以将其值设置为UNIX时间戳，日期字符串（Y-m-d），日期-时间字符串，Datetime/Carbon实例。日期的值将会以正确格式存储到数据库中
+当获取被罗列在$dates数组中的属性时，自动转换为Carbon实例，允许在属性上使用任何Carbon类方法
+1.日期格式化
+默认情况下，时间戳的格式为Y-m-d H:i:s，如果需要自定义时间戳格式，设置$dateFormat属性 决定日期属性存储在数据库以及序列化为数组或JSON时的格式
+# 属性转换
+模型中的$casts属性为属性字段转换到通用数据类型提供了便利方法。$casts属性是数组格式，键时要被转换的属性名称，值时想要转换的类型。目前支持的转换类型包括:integer、real、float、double、decilmal:<digits>、string、boolean、object、array、collection、date、datetime和timestamp
+例如
+$casts = [
+	'is_admin' => 'boolean', // 将数据库中的1或0 转换为 true和false
+]
+1.数组 &　JSON转换
+array类型转化在处理被存储为序列化JSON格式的字段时特别有用。
+2.日期转换
+date或datetime转换类型时 可以指定日期的格式
+$casts = [
+
+];
+
+## API资源类
+构建API时，Eloquent模型和最终返回给应用用户的JSON响应之间可能需要一个转化层。资源类允许以简单优雅的方式将模型和模型集合转化为JSON格式数据
+# 生成资源类
+使用
+php artisan make:resource User
+默认情况下，资源类放在应用的app/Http/Resources目录下， 资源都继承自JsonResource基类
+1.资源集合
+除了生成转化独立模型的资源类之外，还可以生成转化模型集合的资源类。响应就可以包含链接和其他与整个给定资源集合相关的元信息。
+创建资源集合处理类，在创建资源类的时候使用--collection标记，或者在资源名称中包含单词Collection已告知Laravel需要创建一个资源集合类。资源集合类继承自ResourceCollection基类
+php artisan make:resource User --collection
+php artisan make:resouce UserCollection
+# 核心概念
+一个资源类表示一个单独的需要被转化为JSON数据结构的模型
+class User extends JsonResource {
+	pulbic function toArray($request) {
+		return [
+			'id' => $this->id,
+			'name' => $this->name,
+			'email' => $this->email,
+			'created_at' => $this->created_at,
+			'updated_at' => $this->updated_at,
+		];
+	}
+}
+每个资源类都包含一个toArray方法用来返回在发送响应时需要被转化JSON的属性数组。可以直接使用$this访问模型属性，因为资源类是一个代理，可以访问底层对应模型提供的属性和方法。资源类定义好之后，可以从路由或控制器返回
+use App\Http\Resources\User as UserResource;
+Route::get("/user/{id}", function($id) {
+	return new UserResource(User::get($id));
+});
+# 资源集合
+需要返回资源集合或者分页响应，可以在路由或控制器中创建资源实例时使用collection方法。
+当然，这种方式不能添加出模型外的其他需要和集合一起返回的元数据。此时需要创建专用的资源类来表示集合
+php artisan make:resource UserCollection
+# 保留集合键
+当从路由返回资源集合时，Laravel会重置集合的键以便按照数字索引排序。可以添加preserveKeys属性到资源类来标识对应集合键是否保留
+$preserveKeys = true;
+UserResource::collection(User::all()->keyBy->id);
+true时返回有键值数组 false返回所有数组
+# 自定义底层资源类
+通常资源集合的$this->collection属性会被自动填充，填充结果是将集合的每个项目映射到对应的单一资源类中。这个单一资源类被假设为不带Collection后缀的集合类名
+例如UserCollection会尝试映射给定用户实例的User资源，如果需要自定义，可以覆盖$collection属性
+$collections = 'App\Http\Resources\Member';
+# 编写资源类
+资源类的作用就是将给定模型转化为数组，都包含toArray方法。用于将模型属性转化为一个可以返回给用户的API友好的数组
+1.关联关系
+可以关联关系添加到数组中
+public function toArray($request) {
+	return [
+		'id' => $this->id,
+		'posts' => PostResource::collection($this->posts),
+	];
+}
+2.资源集合
+资源类用于将单个模型转化为数组，资源集合类用于将模型集合转化为数组，但不是每个模型都需要定义一个资源集合类，因为资源类提供了一个collection方法立马生成一个特定的资源集合
+3.数据包装
+默认情况下，资源响应被转化为JSON时，最外层的资源都会包裹到一个data键中
+如果想要禁止包装，可以调用资源基类提供的withoutWrapping方法，需要在AppServiceProvider或者其他每个请求都会加载的服务提供者中调用这个方法
+class AppServiceProvider extends Provider {
+	public function boot() {
+		Resource::withoutWrapping();
+	}
+}
+withoutWrapping值影响最外层资源，并不会移除手动添加的data键
+4.包装嵌套资源
+可以自行决定包装资源的关联关系，如果想要所有资源集合包裹到data键里，而不管之间的嵌套，就需要为每个资源定义一个资源集合类并通过data键返回这个集合。
+class CommentsCollection extends ResourceCollection {
+	public function toArray($request) {
+		return ["data" => $this->collection];
+	}
+}
+5.数据包装和分页
+{
+    "data": [
+        {
+            "id": 1,
+            "name": "Eladio Schroeder Sr.",
+            "email": "therese28@example.com",
+        },
+        {
+            "id": 2,
+            "name": "Liliana Mayert",
+            "email": "evandervort@example.com",
+        }
+    ],
+    "links":{
+        "first": "http://example.com/pagination?page=1",
+        "last": "http://example.com/pagination?page=1",
+        "prev": null,
+        "next": null
+    },
+    "meta":{
+        "current_page": 1,
+        "from": 1,
+        "last_page": 1,
+        "path": "http://example.com/pagination",
+        "per_page": 15,
+        "to": 10,
+        "total": 10
+    }
+}
+1)传递分页器实例到资源类的collection方法或者自定义的资源集合类
+UserResource::collection(User::paginate());
+new UserCollection(User::paginate());
+2)带条件的属性
+如果希望只有在满足给定条件的情况下才在资源响应中包含某个属性 使用when方法
+return [
+	'secret' => $this->when($this->isAdmin(), 'secret-value'),
+]
+可以传入闭包作为第二参数
+6.合并带条件的属性
+可能有多个属性基于同一条件才会包含到资源响应中
+return [
+	$this->mergeWhen(Auth::user->isAdmin(), [
+		'first-secret' => 'value',
+		'second-secret' => 'value',
+	])
+];
+false 属性将被移除而不是显示null
+# 带条件的关联关系
+还可以基于给定关联关系是否在模型上加载的条件在资源响应中包含关联关系
+return [
+	'posts' => PostResource::collection($this->whenLoaded('posts')),
+];
+只有posts属性已经加载过才会包含在资源响应中，否则被移除
+1.带条件的中间表信息
+return [
+	'expires_at' => $this->whenPivotLoaded('role_users', function() {
+		return $this->pivot->expires_at;
+	}),
+];
+# 添加元数据
+需要返回额外元数据，可以在toArray方法中包含
+自定义的额外键都会合并而不是被覆盖
+1.顶层元数据
+希望只在资源最外层被返回数据的情况下包含元数据，需要添加一个with方法到资源类中。
+public function with($request) {
+	reutrn [
+		'meta' => [
+			'key' => 'value'
+		]
+	]
+}
+2.构造资源类时添加元数据
+return (new UserResource(User::find(1)))->additional(['a' => 'b']);
+# 资源响应
+可以从路由或控制器中返回
+有时候可能需要发送到客户端之前自定义输出HTTP响应，两种方法
+1.连接response方法到资源类
+return (new UserResource(User::find(1)))->response()->header('', '');
+2.在资源类中定义withResponse方法
+public function withReponse($request, $response) {
+	$reponse->header('', '');
+}
+
+## 序列化
+# 序列化为数组
+$user->toArray()
+# 序列化为JOSN
+$user->toJson(); 
+(string) $user; // 自动调用toJson方法
+# 在JSON中隐藏属性
+$hidden 属性
+protected $hidden = ['password']; // 隐藏
+protected $visiable = ['first_name', 'last_name']; // 显示
+2.临时暴露隐藏属性
+$user->makeVisiable('attr')
+# 追加值到JSON
+先定义一个访问器
+再使用$appends属性 会遵循hidden visiable数组
+2.运行时追加
+$user->append('')
+# 日期序列化
+1.自定义每个属性的日期格式
+$casts = [
+	'updated_at' => 'date:Y-m-d',
+	'joined_at' => 'datetime:Y-m-d H:00',
+]
+2.通过Carbon全局自定义
+public function boot()
+{
+	Carbon::serializeUsing(function ($carbon) {
+		return $carbon->format('U');
+	});
+}
+
+
+
+
+
+
+
+
+
 
 
 
