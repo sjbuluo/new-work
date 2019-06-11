@@ -2925,6 +2925,21 @@ resources/views/auth
 resources/views/layouts 布局文件
 resources/views/home.blade.php
 3.认证
+5.自定义路径
+当一个用户成功进行登录认证之后，默认会跳转到/home，可以通过在LoginController、RegisterController和ResetPasswordController中定义redirectTo属性来自定义登录认证成功之后的跳转路径
+protected $redirectTo = '/';
+接着需要编辑RedirectIfAuthenticated中间件的handle方法来使用新的重定向URI
+需要重定向路径自定义生成逻辑 可以生成一个redirectTo方法 优先级比redirectTo属性高
+protected function redirectTo() {
+	return '/path';
+}
+6.自定义用户名
+默认情况使用email字段进行认证，如果想要自定义认证字段，可以在LoginController中定义username方法
+public function username() {
+	return 'username';
+}
+7.自定义Guard
+
 
 4.自定义路径
 在LoginController/RegisterController/ResetPasswordController中定义redirectTo属性来自定义登录成功之后的跳转路径
@@ -2941,6 +2956,389 @@ public function username() {
 	return 'username';
 }
 6.自定义Guard
+在LoginController、RegisterController和ResetPasswordController中定义guard方法，将会返回一个guard实例
+protected function guard() {
+	reutrn Auth::guard('guard_name');
+}
+guard_name需要在配置文件config/auth.php中配置
+7.自定义验证/存储
+要修改新用户注册所必需的表单字段，或者自定义新用户字段如何存储到数据库，可以修改RegisterController类，负责验证输入参数和创建新用户
+RegisterController的validator方法包含了新用户注册的验证规则，可以按需自定义该方法。
+RegisterController的create方法祝福使用EloquentORM在数据库中创建新的User记录。
+# 获取登录用户
+通过Auth门面访问认证用户
+$user = Auth::user();
+$id = Auth::id();
+通过认证后，还可以通过Request实例访问认证用户。
+$request->user();
+1.判断当前用户是否通过认证
+Auth门面的check方法
+Auth::check() // true为通过认证
+通常使用中间件来判断是否通过认证，而不是手动调用check
+# 路由保护
+路由中间件可用于只允许通过认证的用户访问给定路由，Laravel通过定义在Authenticate中的auth中间件来实现这一功能。由于已经在Kernel中注册，将中间件加到相应的路由定义中
+Route::get('', function() {
+
+})->middleware('auth');
+可以在控制器的构造方法中调用middleware方法而不是在路由器中直接定义实现同样的功能
+public function __conctruct() {
+	$this->middleware('auth');
+}
+1.重定向未认证用户
+auth中间件判断用户未认证，返回一个JSON401响应。如果不是Ajax请求则会重定向到login命名路由
+可以通过更新Authenticate.php中文件的redirectTo函数来改变这一行为
+protected function redirecteTo($request) {
+	return route('login');
+}
+2.指定一个Guard
+添加auth中间件到路由后，可以指定使用哪个guard来实现认证，指定的guard对应配置在config/auth.php中guards数组的某个键
+public function __construct() {
+	$this->middleware('auth:api');
+}
+# 登录失败次数限制
+如果使用Laravel自带的LoginController，就已经启用了内置的ThrottlesLogins trait来限制用户登录失败次数。
+# 手动认证用户
+通过Auth门面来访问认证服务，需要确保在类的顶部导入Auth门面
+class LoginController extends Controller {
+	public function authenticate() {
+		if (Auth::attempt(['email' => $email, 'password' => $password]) {
+			return redirect()->intended('dashboard');
+		}
+	}
+}
+attempt方法接受键值对作为第一个参数，数组中的值被用于从数据表中查找对应用户。通过email查找用户信息，在将password加密后和找到的用户密码对比。如果匹配就为这个用户设置一个认证Session，表示用户登录成功。
+认证成功attempt返回true，否则返回false
+intended方法将用户重定向到用户想要访问的URL，无效则使用传入的URL
+1.指定额外条件
+Auth::attempt(['email' => $email, 'password' => $password, 'active' => 1])
+除了password之外，所有其他字段都作为条件进行查询
+2.访问指定Guard实例
+使用Auth门面的guard方法指定想要使用的guard实例。
+用于登录认证的模型类需要继承Illuminate\Foundation\Auth\User基类
+传递给guard方法的guard名称对应配置文件auth.php中guards配置的admin键
+if (Auth::guard('admin')->attempt($credentials)) {
+
+}
+这种方式认证的用户在后续操作需要传递guard时也要传递相匹配的guard
+$this->middleware('auth:admin');
+Auth::guard('admin')->user();
+3.退出
+使用Auth门面的logout方法，会清除用户Session中的认证信息
+Auth::logout()
+# 记住用户
+将是否记住我boolean参数作为第二个参数传递到Auth::attempt([], $remember_me),不传默认是false。这样用户登录认证状态就会一直保持到手动退出。users表中必须包含remember_token字段，用于存储记住我令牌
+使用记住我功能，通过Auth门面的viaRemember方法来判断用户是否通过记住我Cookie进行认证
+if (Auth::viaRemember()) {
+	//
+}
+# 其他认证方法
+1.认证一个用户实例
+需要将一个已存在的用户实例直接登录到应用，调用Auth门面的login方法并传入用户实例，传入的实例必须是Illuminate\Contracts\Auth\Authenticatable契约的实现。
+Auth::login($user);
+Auth::login($user, true); // 记住我
+也可以指定想要使用的guard实例
+Auth::guard('admin')->login($user);
+2.通过ID认证用户
+需要通过用户ID登录到应用，使用loginUsingId方法，接受想要认证用户的主键作为参数
+Auth::loginUsingId(1)
+Auth::loginUsingId(1, true)
+3.一次性认证用户
+使用Auth门面的once方法只在单个请求中将用户登录到应用，而不存储任何session和cooke，构建无状态API时很有用
+if (Auth::once($credentials)) {
+
+}
+# 基于HTTP的基本认证
+HTTP基本认证能够帮助用户快速实现登录认证而不用设置专门的登录页面，要在路由上使用auth.basic中间件。
+Route::get('', function() {
+
+})->middleware('auth.basic');
+中间件加到路由器之后，访问该路由时，会自动提示认证信息，默认使用email字段作为用户名
+1.FastCGI注意点
+如果你使用 PHP FastCGI，HTTP 基本认证将不能正常工作，需要在 .htaccess 文件加入如下内容：
+
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+2.无状态的HTTP基本认证
+可以在使用HTTP基本认证时不再Session中设置用户标识Cookie，在API认证中非常有用。要实现这个功能，需要定义一个调用onceBasic方法的中间件，如果没有返回任何响应，请求继续进行。
+class AuthenticateOnceWithBasicAuth {
+	public function handle($request, $next) {
+		return Auth::once() ?: $next->handle($request);
+	}
+}
+# 退出
+如果要手动退出应用，可以使用Auth上的logout方法，会清空用户Session中的认证信息
+Auth::session()
+1.让其他设备上的Session失效
+确保AuthenticateSession中间件在web中间组中，使用Auth门面的logoutOhterDevices方法
+Auth::logtouOtherDevices($password)
+# 添加自定义Guard驱动
+Auth门面的extend方法定义自己的认证guard驱动，需要在某个服务提供者的boot方法中实现，自带一个AuthServiceProvider，将代码放到其中
+1.闭包请求Guard
+实现一个自定义的、基于HTTP请求的日志系统最简单的方式就是使用Auth::viaRequest(),接受一个guard名称作为第一个参数，第二个参数是一个闭包，接受HTTP请求并返回一个用户实例，如果日志失败返回null
+public function boot() {
+	Auth::viaRequest('custom-token', function($request) {
+		return User::where('token', $request->token)->first();
+	});
+}
+定义好guard后，就可以在auth.php配置文件中作为driver使用了
+# 添加自定义用户提供者
+Auth门面的provider方法
+public function boot() {
+	Auth::provider('riak', function($app, array $config) {
+		return new RiakUserProvider($app->make('riak.connection'));
+	});
+}
+1.User Provider契约
+UserProvider实现只负责从持久化存储系统中获取Authenticatable实现。允许Laravel认证机制继续其作用而不管用户数据如何存储或者怎么实现
+
+interface UserProvider {
+
+	// 一个代表用户的键获取用户
+    public function retrieveById($identifier);
+	// 通过唯一标识和存储在remember_token字段中的令牌获取用户
+    public function retrieveByToken($identifier, $token);
+	// 更新用户记住我令牌
+    public function updateRememberToken(Authenticatable $user, $token);
+	// 通过多个字段获取用户
+    public function retrieveByCredentials(array $credentials);
+	// 验证字段有效性来认证用户
+    public function validateCredentials(Authenticatable $user, array $credentials);
+
+}
+2.Authenicatable契约
+interface Authenticatable {
+	// 主键名
+    public function getAuthIdentifierName();
+	// 主键值
+    public function getAuthIdentifier();
+	// 密码
+    public function getAuthPassword();
+	// 记住我令牌
+    public function getRememberToken();
+	// 设置记住我令牌
+    public function setRememberToken($value); 
+	// 获取记住我对应名称
+    public function getRememberTokenName();
+}
+# 事件
+支持在认证过程中触发多种事件，可以在EventServiceProvider中监听这些事件
+
+## API认证解决方案 Laravel Passport
+# OAuth2概述
+1.什么是OAuth协议
+是Open Authorization的简写，为用户资源的授权提供了一个安全的、开放而又简易的标准。与以往的授权方式不同,OAuth授权不会使第三方触及到用户的账号信息，即第三方无需使用用户的用户名和密码就可以申请获得用户资源的授权。
+OAuth本身不存在标准的实现 实现步骤一般如下
+1）客户端要求用户授权
+2）用户同意授权
+3）根据上一步获得授权 向认证服务器请求令牌（token）
+4）认证服务器对授权进行认证 确认无误后发放令牌
+5）客户端使用令牌向资源服务器请求资源
+6）资源服务器使用令牌向认证服务器确认令牌的正确性，无误后提供资源
+服务方不信任用户，所以需要用户提供密码或其他可信凭据；
+
+服务方不信任第三方，所以需要第三方提供自已交给它的凭据（通常的一些安全签名之类的就是）；
+
+用户部分信任第三方，所以用户愿意把自已在服务方里的某些服务交给第三方使用，但不愿意把自已在服务方的密码交给第三方；
+
+在 OAuth 的流程中，用户登录了第三方的系统后，会先跳去服务方获取一次性用户授权凭据，再跳回来把它交给第三方，第三方的服务器会把授权凭据以及服务方给它的的身份凭据一起交给服务方，这样，服务方一可以确定第三方得到了用户对此次服务的授权（根据用户授权凭据），二可以确定第三方的身份是可以信任的（根据身份凭据），所以，最终的结果就是，第三方顺利地从服务方获取到了此次所请求的服务。
+# 安装
+composer require laravel/passport
+php artisan migrate
+php artisan passport:install
+生成记录存放在数据表oauth_clients
+添加HasApiToken到User模型类中,会为模型类提供一些辅助函数用于检查用户的token和scope
+*
+未看完 需要仔细看了解过程
+*
+
+## API认证
+默认Laravel通过为应用中的每个用户分配一个随机的令牌这种方式提供非常简单的API认证解决方案。
+# 配置
+1.数据库准备
+php artisan make:migration alert_users_table --table=users
+$table->string('api_token', 80)->after('password')->unique();
+# 生成令牌
+在RegisterController中
+User::create([
+	...,
+	'api_token' => Str::random(60),
+]);
+# 哈希令牌
+auth.php中
+'api' => [
+	'driver' => 'token',
+	'provider' => 'users',
+	'hash' => true,
+]
+1.生成令牌
+$request->user()->forceFill([
+	'api_token' => hash(Str::random(60)),
+])->save();
+# 路由保护
+在路由上应用中间件
+Route::middleware('auth:api')->get('', function(){});
+# 在请求中传递令牌
+'api_token='.$token
+
+## 授权
+除了认证之外，还有管理授权逻辑以便控制对资源的访问权限，主要设计Gate和Policy
+# Gate
+1.编写Gate
+用于判断用户是否有权进行某项操作的闭包，通常使用Gate门面定义在AuthServiceProvider类中
+public function boot() {
+	Gate::define('update-post', function($user, $post) {
+		return $user->id == $post->user_id;
+	});
+}
+还可以通过Class@method风格的回调字符串定义和控制器一样
+2.资源Gate
+Gate::resource('posts', 'PostPolicy');
+相当于
+Gate::define('posts.view', 'App\Policies\PostPolicy@view');
+Gate::define('posts.create', 'App\Policies\PostPolicy@create');
+Gate::define('posts.update', 'App\Policies\PostPolicy@update');
+Gate::define('posts.delete', 'App\Policies\PostPolicy@delete');
+默认会定义view create update delete,通过传入数组作为第三个参数来覆盖或添加其他权限。
+3.授权动作
+Gate::allows('', )
+Gate::denies('', )
+使用forUser()为指定用户授权
+Gate::forUser($user)->allows('', )
+Gate::forUser($user)->denies('', )
+4.拦截Gate检查
+Gate::before(function($user, $ability){
+	
+});
+Gate::before(function($user, $ability){
+	
+});
+在所有授权检查之前/后调用，返回非null 则直接作为检查结果返回
+# Policy
+1.生成Policy类
+php artisan make:policy PostPolicy --model=Models/Post
+2.注册Policy
+AuthServieProvider包含一个policies属性来映射Eloquent模型及其对应的Policy类。
+3.自动发现
+Policy在app/Polices目录下，实体类在app目录下，自动关联
+# 编写Policy
+public function update($user, $post) {
+	return $user->id == $post->user_id;
+}
+1.不带模型的方法
+public function create(User $user) {
+
+}
+2.访客用户
+如果传入HTTP请求由访客用户发起，所有Gate和Policy检查都会返回false，不过可以通过声明认证用户参数可选或者默认值为null来允许访客用户请去通过授权检查
+public function(?User $user, Post $post) {
+	
+}
+3.策略过滤器
+public before($user, $ability) {
+	if ($user->isSuperAmidn()) {
+		return true;
+	}
+}
+# 使用Policy授权动作
+1.通过User模型
+提供两个方法用于授权动作can和cant，can方法接受想要授权的动作和对应的模型作为参数
+if ($user->can('update', $post)) {
+
+}
+如果对应的策略已经注册，则can方法会自动调用相应的策略并返回布尔结果，没有策略注册，则尝试调用与动作名称相匹配的Gate闭包
+2.不依赖模型的动作
+有些动作不依赖与给定模型实例，可以传递一个类名到can方法，会在进行授权时判断使用哪一个策略
+if ($user->can('create', Post::class)) {
+
+}
+3.通过中间件
+Authorize中间件，分配了can的别名
+Route::put('', function() {
+
+})->middleware('can:update, post');
+第一个参数是授权动作名，第二个参数是模型实例，如果没有授权返回一个403响应
+4.不依赖模型的动作
+Route::put('', function() {
+
+})->middleware('can:create, App\Models\Post');
+5.通过控制器辅助函数
+Controller基类的所有控制器提供了authorize方法和can方法类似。接受想要授权的方法和模型实例作为参数，如果没有授权抛出AuthorizationException，默认异常处理器将其转化为状态码403的HTTP响应
+$this->authorize('update', $post);
+6.不依赖模型
+$this->authorize('create', Post);
+7.授权资源控制器
+public function __construct() {
+	$this->authorizeResource(Post::class, 'post');
+}
+8.通过Blade模板
+@can @cannot指令
+@can('update', $post)
+@elsecan('create', Post::class)
+$endcan
+@cannot('update', $post)
+@elsecannot('create', Post::class)
+@endcannot
+可以看做是@if @elseif @else @endif的简写
+
+## 邮箱验证
+1.模型准备
+需要实现MustVerifyEmail契约
+User extends Authenticatable implements MustVerifyEmail {
+
+}
+2.数据库配置
+邮箱验证字段
+必须包含email_verified_at字段
+3.路由
+内置Auth\VerificationController类来包含发送验证连接和验证邮箱的必要逻辑。为这个控制器注册相关路由则传递verify=true到Auth::routes方法
+保护路由
+未注册用户不能访问，已经提供了中间件EnsureEmailIsVerified,别名verified
+->middleware('verified')
+4.视图
+执行make:auth之后，视图位于resources/views/auth/verify.blade.php
+5.验证邮箱后
+用户重定向到/home页面
+在VerificationController中定义redirectTo方法或属性来自定义重定向路径
+6.事件
+
+## 加密
+加密器使用OpenSSL来提供AES-256和AES-128加密。
+# 配置
+必须在配置文件app.php中设置可以选项为32位随机字符串，可以使用php artisan key:generate命令来生成这个key
+# 使用加密器
+1.加密
+encrypt($str) 
+所有加密值都使用OpenSSL和AES-256-CBC密码进行加密，此外所有加密值都通过一个消息认证码（MAC）来进行签名一繁殖对加密字符串的任何修改
+2.不进行序列化的加密
+加密值在加密期间都会经过序列化函数serialize进行处理，从而允许对对象和数组的加密。非PHP客户端接受的加密数据需要unserialize反序列化。如果不想进行序列化操作，可以使用Crypt门面提供的encryptString和decryptString方法
+3.解密
+decrypt($str)
+
+## 哈希
+Hash门面为存储用户密码提供了安全的Bcrypt和Argon2哈希算法，如果使用自带的LoginController和RegisterController控制器，将会自动在注册和认证时使用默认的Bcrypt算法
+#配置
+在config/hashing.php文件中，目前支持两种驱动Bcrypt和Argon2
+# 基本使用
+Hash门前的make方法对密码进行哈希
+Hash::make($password)
+1.调整Bcrypt工作因子
+Hash::make($password, ['rounds'=>12])
+2.调整Argon2工作因子
+Hash::make($password, [
+	'memory' => 1024,
+	'time' => 2,
+	'threads' => 2,
+])
+3.通过哈希验证密码
+Hash::check($toVerifyPassword, $password)
+4.检查密码是否需要重新哈希
+Hash::needRehash($hashedPassword)
+
+## 重置密码
+必须使用Notifiable trait
+# 数据库相关
+需要实现CanResetPassword trait来包含实现该接口需要的方法
+1.生成重置令牌表迁移
 
 
 
@@ -4100,6 +4498,275 @@ public function boot()
 		return $carbon->format('U');
 	});
 }
+
+
+
+### 进阶
+## Artisan控制台
+# 简介
+Artisan是Laravel自带的命令行接口，提供了很多有用的命令
+php artisan list  // 查看所有可用的Artisan命令
+每个命令都可以使用help指令显示命令描述及命令参数和选项。
+php artisan help migrate
+1.Tinker(REPL)
+允许通过命令行与整个Laravel应用进行交互，包括Eloquent ORM、任务、事件等等。要进入tinker环境，运行tinker命令即可
+php artisan tinker
+可以使用vendor:publish 命令发布Tinker的配置文件
+php artisan verdor:publish --provider="Laravel\Tinker\TinkerServiceProvider"
+2.命令白名单
+判断哪些artisan命令可以在Shell中运行，默认情况下，可以运行clear-compiled、down、env、inspire、migrate、optimize和upmingl，需要更多则在config/tinker.php配置文件中的commands数组中添加
+3.别名黑名单
+Tinker会根据需要自动为类设置别名，可能希望永远不为某些类添加别名。在dont_alias数组中添加这些类
+# 编写命令
+1.生成命令
+使用make:command命令在app/Console/Commands目录下创建新的命令类
+php artisan make:command SendEmails
+2.命令结构
+需要填写
+signature
+description
+在调用list实现命令的时候会被用到
+handle方法在命令执行时调用
+可以在构造函数和handle方法中注入任何需要的依赖
+3.闭包命令
+基于闭包的命令和闭包路由之于控制器一样，以类的方式定义控制台命令提供了可选方案。
+在app/Console/Kernel.php文件中的commands方法中，加载routes/console.php文件
+在这个console.php文件中使用Artisan::command方法定义所有基于闭包的路由 接受两个参数-命令标识和接收命令参数和选项的闭包
+Artisan::command('build {project}', function($project) {
+	$this->info("Building {$project}!");
+});
+4.类型提示依赖
+还可以根据类型提示服务容器之外解析的额外依赖
+5.闭包命令描述
+Artisan::command('', function() {
+
+})->describe('');
+# 定义期望输入
+signature属性通过一个优雅的、路由风格的语法允许定义命令的名称、参数以及选项
+1.参数
+protected $signature = 'email:send {user}';
+protected $signature = 'email:send {user?}'; // 可选
+protected $signature = 'email:send {user=foo}'; // 默认
+2.选项
+protected $signature = 'email:send {user} {--queue}'; // 传入选项为true 否则false
+3.带值的选项
+protected $signature = 'email:send {user} {--queue}'
+protected $signature = 'email:send {user} {--queue=default}' // 默认
+4.选项简写
+protected $signature = 'email:send {user} {--Q|queue}'
+5.输入数组
+protected $signature = 'email:send {user*}';
+protected $signature = 'email:send {user*} {--I|id=*}';
+6.输入描述
+protected $signature = 'email:send {user : 说明} {--queue : 说明}'
+# 命令IO
+1.获取输入
+public function handle() {
+	$this->argument(''); 指定名称参数
+	$this->arguments(); 所有参数
+	$this->option(''); 指定名称选项
+	$this->options(); 所有选项
+}	
+2.输入提示
+可能还在命令执行期间要用户提供输入ask方法
+$name = $this->ask('What is your name?');
+secret方法 输入不可见
+3.让用户确认
+confirm方法 默认返回false 输入y则返回true
+4.自动完成
+anticipate方法提供选项自动完成，用户仍然可以自行输入
+5.让用户选择
+choice('', [], 0)
+# 编写输出
+$this->line/info/comment/question/error
+$this->table($th, $tb) // 表格
+进度条
+$bar = $this->output->createProgressBar($count);
+$bar->start(); // 开始计时
+for($index = 0; $index < 10000; $index++) {
+	$bar->advance(); // 计时+1 
+}
+$bar->finish();
+# 注册命令
+Console Kernel自动调用load方法，所有app/Console/Commands目录下的命令都会通过Artisan自动注册，可以额外调用load注册其他目录下的命令
+# 通过代码调用命令
+Artisan::call('command_name', [$argument => $value, --$option=>$value]);
+
+## 广播
+# 简介
+Laravel事件提供了简单的观察者模式实现。允许订阅和监听应用中的事件。事件类通常存放在app/Events目录，监听器存放在app/Listeners。
+为应用功能解耦提供了行之有效的解决办法,因为单个事件可以有多个监听器而这些监听器之间并不相互依赖。
+# 注册事件/监听器
+Laravel自带的EventServiceProvider为事件监听器注册提供了方便之所，其中的listen属性包含了事件(键)和对应监听器(值)数组。多个添加多个事件到该数组。
+1.生成事件/监听器类
+只需要添加监听器和事件到EventServiceProvider然后运行event:generate命令。会生成罗列在EventServiceProvider中的所有事件和监听器，已存在的不会重复创建
+php artisan event:generate
+2.手动注册事件
+通常通过$listen数组注册事件，还可以在boot方法中手动注册基于闭包的事件。
+public function boot() {
+	parent::boot();
+	Event::listen('event.name', function($foo, $bar) {
+	
+	});
+}
+3.通配符事件监听器
+可以使用通配符*来注册监听器，这样可以通过同一个监听器捕获多个事件，通配符监听器接受整个事件数据数组作为参数
+$events->listen('event.*', function($eventName, array $data) {
+
+});
+# 定义事件
+事件类是一个处理与事件相关的简单数据容器，例如OrderShipped事件接受一个Eloquent ORM对象
+class OrderShipper {
+	use SerializeModels;
+	
+	public $order;
+	
+	public function __construct(Order $order) {
+		$this->order = $order;
+	}
+}
+事件类可以不包含任何特定逻辑，只是一个存放被购买的Order对象的容器，如果事件对象被序列化的话，使用的SerializeModels trait将会使用PHP的serialize函数序列化所有Eloquent模型
+# 定义监听器
+事件监听器在handle方法中接受事件实例，event:generate命令将会自动在handle方法中导入相应的事件类和类型提示事件。
+class SendShipmentNotification {
+	public function __construct() {
+	
+	}
+	
+	public function handle(OrderShipped $event) {
+		// $event->order
+	}
+}
+可以在构造函数中类型提示任何需要的依赖，所有事件监听器通过服务容器解析，依赖会自动注入
+1.停止事件继续往下传播
+可以通过在handle方法中return false来实现
+# 事件监听器队列
+如果监听器将要执行耗时任务比如发送邮件或者发送HTTP请求，可以放入监听器队列，需要确保已经配置好队列并且在服务器或本地环境启动一个队列监听器。
+要指定某个监听器需要放到队列，需要让监听器类实现ShouldQueue接口，event:generate命令已经导入接口
+实现接口的监听器调用时，将会使用队列系统通过事件分发器自动推送到队列，如果通过队列执行监听器没有抛出异常，则在执行后自动删除
+1.自定义队列连接 & 队列名称
+定义$connect $queue和$delay属性
+$connection = 'sqs'; // 任务推送到的连接名称
+$queue = 'listeners'; // 任务推送到的队列名称
+$delay =60; // 任务被处理之前的延迟时间(s)
+1.手动访问队列
+如果需要手动访问底层队列任务的delete和release方法，在生成的监听器中，默认导入的InteractsWithQueue提供了访问方法
+$this->release()
+2.处理失败任务
+监听器上的failed方法
+public function failed(OrderShipper $event, $exception) {
+
+}
+# 分发事件
+使用event辅助函数，这个辅助函数会分发事件到所有注册的监听器，event辅助函数全局有效
+event(new OrderShipper($order));
+# 事件订阅者
+指在类本身中订阅多个事件的类，通过事件订阅者可以在单个类中定义多个事件处理器。订阅者需要定义一个subscribe方法，传入一个事件分发器实例，可以在给定的分发器中调用listen方法注册事件监听器
+class UserEventSubscriber {
+	public function handleUserLogin($event) {
+	
+	}
+	public function handleUserLogout($event) {
+	
+	}
+	public function subscribe($events) {
+		$events->listen('事件类的命名空间', '订阅者的命名空间@订阅者的处理方法');
+	}
+}
+class EventServiceProvider extends ServiceProvider {
+	$subscribe = [
+		'订阅者类的命名空间',
+	];
+}
+
+
+## 文件存储
+PHP包FlySystem提供文件系统驱动。
+# 配置
+文件系统配置位于config/filesystem.php，可以配置所有磁盘，每个磁盘描述了特定的存储驱动和存储路径。
+# 公共磁盘
+public磁盘用于存储可以被公开访问的文件，默认情况下，public磁盘使用local驱动并将文件存储在storage/app/public目录下，要让这些文件可以通过Web浏览器访问，需要创建一个软连接，将public/storage指向storage/app/public，这种方式可以将公开访问的文件保存在一个很容易被不同部署环境共享的目录。
+创建软链接 使用
+php artisan storage:link
+文件被存储并且已经被创建的情况下，可以使用辅助函数asset创建一个指向该文件的URL
+asset('storage/file.txt')
+# 本地驱动
+使用local驱动的时候，所有文件操作都相对于定义在配置文件的root目录，默认情况下，设置为storage/app目录。
+Storage::disk('local')->put('file.txt', 'Contents');
+# 驱动预备知识
+
+# 获取硬盘实例
+使用Storage门面和配置的任意磁盘进行交互
+Storage::put('', ); // 使用默认磁盘
+Storage::disk()->put('', ); // 指定磁盘存放数据到文件
+# 获取文件
+Storage::get()
+Storage::disk()->get()
+Storage::exists()
+1.下载文件
+Storage::download('',$name,$headers);
+2.文件URL
+Storage::url('');
+3.临时URL
+4.自定义本地主机URL
+添加url选项到磁盘配置数组
+'public' => [
+	'url' => env('APP_URL').'/storage',
+]
+5.文件元信息
+Storage::size('') // 文件大小
+Storage::lastModified('') // 最后修改时间
+# 存储文件
+put方法可以用于存储原生文件内容到磁盘，还可以传递一个PHP资源到put方法，将会使用FlySystem底层的流支持
+Storage::put('file', $contents)
+1.自动文件流
+Laravel自动将给定文件流输出到对应存储路径，可以使用putFile或putFileAs方法，该文件接收File或UploadedFile实例，然后自动将文件流保存到期望的路径
+Storage::putFile('newPath', new File($oldFile)) // putFile会基于文件内容自动生成文件名，实现原理是对文件内容进行MD5哈希运算。会返回文件路径，包含文件名
+Storage::putFile('newPath', new File($oldFile), 'newFileName') // 使用指定名称存储文件
+putFile和putFileAs还可以传入用于指定可见度的参数
+2.添加内容到文件开头/结尾
+Storage::append('fileName', $content)
+Storage::prepend('fileName', $content)
+3.拷贝 &  移动文件
+Storage::copy('old', 'new')
+Storage::move('old', 'new')
+# 文件上传
+$request->file('uploadFileName')->storage('storageFilePath')
+默认会根据上传文件内容自动生成文件名，
+Storage::putFile('newPath', $request->file(''))
+1.指定文件名
+$request->file('')->storageAs('newPaht', '')
+Storage::putFileAs('newPaht', $request->file(''), 'newFileName')
+2.指定磁盘
+$request->file('')->storage('newfilePath', 'newFileName', 'disk')
+# 文件可见度
+Storage::put('filename', $content, 'public);
+Storage::setVisibility('filename', 'private')
+# 删除文件
+Storage::delete('')
+Stroage::delete([])
+# 目录
+1.获取一个目录下的所有文件
+files方法返回给定目录下的所有文件数组，包括子目录下的文件则需要使用allFiles方法
+Storage::files('path')
+Storage::allFiles('path')
+2.获取一个目录下的所有子目录
+Storage::directories($paht)
+Storage::allDirectories($path)
+3.创建目录
+Storage::makeDirectory('')
+4.删除目录
+Storage::deleteDirectory('')
+# 自定义文件系统
+
+## 辅助函数
+
+
+
+
+
+
+
 
 
 
