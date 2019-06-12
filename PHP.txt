@@ -4760,32 +4760,317 @@ Storage::deleteDirectory('')
 # 自定义文件系统
 
 ## 辅助函数
+*****  暂时未看比较多 **********
 
+## 邮件
+# 生成可邮寄类
+应用发送的邮件都可以表示为可邮寄类，存放在app/Mail目录下
+php artisan make:mail OrderShipped
 
+# 编写可邮寄类
+所有可邮寄类都在build方法中完成，可以调用多个方法，例如from、subject、view和attach来配置邮件的内容和发送
+1.from方法
+配置发件人，两种方法
+1）在可邮寄类的build方法中使用from方法
+public function build() {
+	$this->from('example@example.com').view('');
+}
+2）使用全局的from地址
+如果应用所有邮件都使用相同的发送地址，可以在config/mail.php中指定一个全局的发送地址，可用于在所有可邮寄类中没有指定发送地址的场景下（默认发件人）
+'from' => ['address' => 'example@example.com', 'name' => 'App Name']
+此外还可以在配置文件中定义全局的回复地址
+'reply_to' => ['address' => 'example@example.com', 'name' => 'App Name']
+# 配置视图
+在可邮寄类的build方法中使用view方法来指定渲染邮件内容的视图模板，通常使用Blade 模板来渲染内容，可以在构建邮件HTML使用Blade模板引擎提供的所有功能
+1.纯文本邮件
+定义纯文本格式的邮件，可以使用text方法，和view方法一样，接受一个用于渲染邮件内容的模板名。
+# 视图数据
+1.通过公共属性
+在可邮寄类中的公共属性在视图中自动生效。
+2.通过with方法
+通过with方法手动传递数据到视图，一般情况下，还需要通过构造器传递数据。不过，这里需要设置数据为protected或private属性，这些数据不会在视图中自动生效。当调用with方法时，传递数组数据到该方法以便数据在视图模板中生效。
+3.附件
+如果需要添加附件，可以在可邮寄类的build方法中使用attach方法，接受完整文件路径作为第一个参数
+public function build() {
+	$this->view('')->attach('/path');
+}
+附加文件到消息时，还可以通过传递一个数组作为attach方法第二个参数来指定文件显示名或MIME类型
+public function build() {
+	$this->view('')->attach('/path', [
+		'as' => 'name.jpg',
+		'mime' => 'application/jepg',
+	]);
+}
+4.添加磁盘文件
+使用attachFromStorage
+return $this->view('')->attachFromStorage('')
+同时第二个数组参数用于指定文件名和MIME类型
+return $this->view('')->attachFromStorage('', [
+	'as' => 'test.jpg',
+	'mime' => 'application/jepg',
+])
+5.指定磁盘而不是默认磁盘中的文件
+使用attachFromStorageDisk
+return $this->view('')->attachFromStorage('', '', [
+	'as' => 'test.jpg',
+	'mime' => 'application/jepg',
+])
+第一个参数是指定磁盘名称 第二个是文件名 第三个指定附件名和MIME类型
+6.原生数据附件
+attachData方法可用于添加原生的字节字符串作为附件，第一个参数为数据字节，第二个参数是附件文件名，第三个参数则是可选数组
+return $this->view('')->attachData(byteArr, 'fileName', [])
+7.内联附件
+在模板中使用$meesage变量的embed方法
+{{ $message->embed('') }}
+8.嵌入原生数据附件
+在模板中使用$message变量的embedData方法
+{{ $message->embedData($data, $name) }}
+# 自定义SwiftMailer消息
+Mailable基类上的withSwiftMessage方法允许注册一个在发送消息之前可以被原生SwiftMailer消息实例调用的回调，赋予了在发送消息之前定制消息的机会
+public function build() {
+	$this->view('');
+	$this->withSwiftMessage(function($message) {
+		$message->getHeaders()->addTextHeader('', '');
+	});
+}
+# Markdown邮件类
+Markdown邮件消息允许在可邮寄类中利用预置模板和邮件通知组件。以Markdown格式编写，Laravel可以渲染出良好的HTML模板，同时自动生成纯文本副本
+1.生成Markdown邮件类
+php artisan make:mail OrderShipped --markdown=email.orders.shipped
+调用可邮寄类的build方法 使用markdown方法取代view方法。markdown方法接收Mardown模板的名称和一个可选的模板中生效的数组数据
+2.编写Markdown消息
+Markdown邮件类组合使用Blade组件和Markdown语法，
+@component('mail::message')
+# Order Shipped
 
+Your order has been shipped!
 
+@component('mail::button', ['url' => $url])
+View Order
+@endcomponent
 
+Thanks,<br>
+{{ config('app.name') }}
+@endcomponent
+3.按钮组件
+渲染一个居中的按钮链接，接收两个参数，url和可选的color，支持的color有primary、success和error，可以添加任意数量的按钮到消息中
+@component('mail::button', ['url' => '', 'color' => ''])
+4.面板组件
+将给定的文字区块渲染到一个面板中，并且与周围的消息区分
+@component('mail::panel')
+5.表格组件
+允许将Markdown表格转化为HTML表格
+@component('mail::table')
+| Laravel       | Table         | Example  |
+| ------------- |:-------------:| --------:|
+| Col 2 is      | Centered      | $10      |
+| Col 3 is      | Right-Aligned | $20      |
+@endcomponent
+6.自定义组件
+php artisan vendor:publish --tag=laravel-mail
+将Markdown邮件组件到resources/views/vendor/mail目录下。包含html和text目录，每个子目录中有包含各自的所有有效组件
+7.自定义css
+# 发送邮件
+使用Mail门面上的to方法，to方法接受邮箱地址、用户实例或用户集合作为参数。如果传递的是对象或者对象集合，在设置邮件人的时候邮件会自动使用email和name属性，实现要确保这些属性在相应类上有效。指定收件人之后，传递一个可邮寄类实例到send方法
+Mail::to('xxx@xx.com')->send(new OrderShipped());
+发送邮件不仅限于单个收件人，还可以通过单个方法链调用设置to、cc以及bcc方法
+# 渲染可邮寄类
 
+# 邮件队列
+1.邮件消息队列
+由于发送邮件会大幅度延长应用的响应时间，使用后台发送。可以使用内置的统一队列API来实现这一功能。要将邮件消息推送到队列，可以在指定消息的接受者后使用Mail门面的queue方法。
+Mail::to('')->queue(new OrderShipped());
+自动将邮件任务推送到队列以便后台发送，需要配置队列
+2.延迟消息队列
+指定延迟时间发送，使用later方法
+Mail::to('')->later($time, new OrderShipped())
+3.推送到指定队列
+使用make:mail命令生成的可邮寄类使用Queueable trait，可以调用onQueue和onConnection方法，以便为消息指定连接和队列名称
+$message = (new OrderShipped())->onConnection('')->onQueue('');
+Mail::to('')->queue($message);
+4.默认队列
+实现了ShouldQueue契约，即使调用send方法也会被推送到队列中。
 
+# 事件
+在发送邮件消息前触发两个事件，MessageSending事件在消息发送前触发，MessageSent在消息发送后触发。是在邮件被发送前后触发，而不是推送到队列时触发。
 
+## 通知
+除了发送邮件，还支持多种传输通道发送通知。
+# 创建通知
+php artisan make:notification InvoiePaid
+# 发送通知
+1.使用Notifiable Trait
+use Notifiable;
+$user->notify(new InvoicePaid());
+2.使用Notification门面
+Notification::send($users, new InvoicePaid())
 
+## 队列
+为不同的后台队列服务提供了统一的API
+配置文件在config/queue.php中
+# 连接 VS 队列
+配置中有connections配置项，定义了后台队列服务的特定连接。
+每个连接配置示例都有queue属性，新队列任务被添加到指定连接时，该配置项的值就是默认监听的队列。
+支持优先级排序
+php artisan queue:work --queue=high,default
+# 驱动预备知识
+1.数据库
+php artisan queue:table
+php artisan migrate
+2.redis
+需要在database中配置Redis数据库连接
 
+# 创建任务
+1.生成任务类
+php artisan make:job ProcessPodcast
+2.任务类结构
+通常只包含处理该任务的handle方法
+# 分发任务
+可以通过任务自身的dispatch方法将其分发到队列中，
+ProcessPodcast::dispatch($podcast);
+1.延迟分发
+ProcessPodcast::dispatch($podcast)->delay(now()->addMinutes(10));
+2.同步分发
+ProcessPodcast::dispatchNow($podcast);
+对应任务不会被推送到任务队列，而是立即执行
+3.任务链
+在一个序列中执行的队列任务列表，如果某个任务失败，则其他任务不再运行，使用withChain方法
+ProcessPodcast::withChain([
+	Podcast1,
+	Podcast2,
+])->dispatch();
+4.链接连接 & 队列
+allOnConnection和allOnQueue方法
+5.自定义队列 & 连接
+分发到指定的队列
+通过推送任务到不同队列，可以将队列任务进行分类，甚至根据优先级来分配每个队列的进程数
+onQueue方法
+分发到指定的连接
+onConnection方法
+6.指定最大失败次数/超时时间
+php artisan queue:work --tries=3
+可以在任务类自身定义最大失败次数来实现更加细粒度的控制
+public $reties = 5;
+7.基于时间的尝试次数
+添加retryUntil方法
+public function retyUntil() {
+	return now()->addSecods(5);
+}
+8.超时
+php artisan queue:work --timeout=30
+可以在任务类中定义细粒度的超时时间
+public $timeout = 120;
+9.频率限制
+要求应用可以与Redis进行交互
+***** 未看 *************
+10.处理错误
+如果任务在处理的时候有异常抛出，则该任务将会自动释放会队列以便尝试执行。任务会持续被释放直到尝试次数达到应用允许的最大次数。
+# 队列闭包
+$podcast = App\Podcast::find(1);
+dispatch(function() as ($podcast) {
+	$podcast->publish();
+});
+# 运行队列进程
+php artisan queue:work
+1.指定连接和队列
+php artisan queue:work database // 使用指定连接
+php artisan queue:work --queue=emails // 只处理单一队列
+php artisan queue:work --onve // 只处理队列中的单一任务
+php artisan queue:work --stop-when-empty // 处理全部任务后退出
+2.队列优先级
+dispatch((new Job)->onQueue('high'))
+php artisan queue:work --queue=high,low
+# 队列进程 & 部署
+php artisan queue:restart
+完成正在进行的任务后，结束该进程，避免队列任务的丢失或错误。
+# 任务过期 & 超时
+1.任务过期
+queue.php配置文件中每个连接配置retry_after项，定义任务在执行后多少秒后释放会队列。
+2.队列进程超时
+php artisan queue:work --timeout=60
+队列进程中每个任务最长执行时间，如果超时就关闭进程。
+3.进程休眠时间
+php artisan queue:work --sleep=3
+可以使用sleep配置项来指定没有新的有效任务产生时的休眠时间，休眠期队列不会处理新任务直到队列醒来。
+# 配置Supervisor
+Linux中常见的守护程序。
+# 处理失败的任务
+如果执行次数达到限定次数，任务将会被插入failed_jobs表
+php artisan queue:failed-table
+php artisan migrate
+1.清理失败任务
+可以在任务类中定义failed方法，在失败发生时执行指定的动作，比如发送任务失败的通知，记录日志等。导致任务失败的Exception会被传递到failed方法中。
+public function failed(Exception $exception) {
 
+}
+2.任务失败事件
+如果希望在任务失败时触发某个事件，可以使用Queue::failling方法
+Queue::failling(function(JobFailed $event) {
+	
+});
+3.重试失败的任务
+php artisan queue:failed // 列出失败任务
+php artisan queue:retry 5 // 重试id为5的任务
+php artisan queue:retry all // 重试所有任务
+php artisan queue:forget 5 // 删除id为5的任务
+php artisan queue:flush // 删除所有失败任务
 
+# 任务事件
+Queue门面提供的before和after方法可以在任务被处理之前和之后指定要执行的回调，可以用于记录日志或者记录统计数据。
+Queue::before(function (JobProcessing $event) {
+	// $event->connectionName
+	// $event->job
+	// $event->job->payload()
+});
 
+Queue::after(function (JobProcessed $event) {
+	// $event->connectionName
+	// $event->job
+	// $event->job->payload()
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
+## 任务调度
+Cron
+# 定义调度
+在App\Console\Kernel类的schedule方法中定义所有调度任务
+1.调用Artisan命令
+$schedule->command('email::send --force')->daily();
+$schedule->command(EmailsCommand ,['--force'])->daily();
+2.调度队列任务
+$schedule->job(new Heartbeat, 'heartbeats')->everyFiveMinutes();
+3.调用shell命令
+$schedule->exec('node /home/forge/script.js')->daily();
+4.调度常用选项
+->cron('* * * * *');	在自定义Cron调度上运行任务
+->everyMinute();	每分钟运行一次任务
+->everyFiveMinutes();	每五分钟运行一次任务
+->everyTenMinutes();	每十分钟运行一次任务
+->everyFifteenMinutes();	每十五分钟运行一次任务
+->everyThirtyMinutes();	每三十分钟运行一次任务
+->hourly();	每小时运行一次任务
+->hourlyAt(17);	每小时第十七分钟运行一次任务
+->daily();	每天凌晨零点运行任务
+->dailyAt('13:00');	每天13:00运行任务
+->twiceDaily(1, 13);	每天1:00 & 13:00运行任务
+->weekly();	每周运行一次任务
+->monthly();	每月运行一次任务
+->monthlyOn(4, '15:00');	每月4号15:00运行一次任务
+->quarterly();	每个季度运行一次
+->yearly();	每年运行一次
+->timezone('America/New_York');	设置时区
+可以和额外的约束一起联合起来创建一周特定时间运行的、更加细粒度的调度
+->weekdays();	只在工作日运行任务
+->weekends();	只在周末运行任务
+->sundays();	每个星期天运行任务
+->mondays();	每个星期一运行任务
+->tuesdays();	每个星期二运行任务
+->wednesdays();	每个星期三运行任务
+->thursdays();	每个星期四运行任务
+->fridays();	每个星期五运行任务
+->saturdays();	每个星期六运行任务
+->between($start, $end);	基于特定时间段运行任务
+->when(Closure);	基于特定测试运行任务
+->environments($env);	只在指定环境运行任务
 
 
 
