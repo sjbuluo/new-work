@@ -1033,8 +1033,10 @@ bandwidth 最大带宽
 具体实现依赖于底层Socket，很多（包括Andriod）会忽略这个提示。
 ## HTTP服务器
 # 单文件服务器
-
-
+public class SimpleSingleFileServer {
+	// 详见network 相关java文件
+}
+# 重定向器
 
 
 
