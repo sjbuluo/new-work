@@ -1,5 +1,7 @@
 package com.sun.health.newwork.interview.java.network.server;
 
+import org.junit.Test;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -19,6 +21,7 @@ public class SimpleHttpRedirectorServer1 {
             serverSocket = new ServerSocket(9362);
             while (true) {
                 Socket accept = serverSocket.accept();
+                new SocketRedirectThread(accept).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -31,6 +34,11 @@ public class SimpleHttpRedirectorServer1 {
                 }
             }
         }
+    }
+
+    @Test
+    public void test1() {
+        new SimpleHttpRedirectorServer1().startup();
     }
 
 }

@@ -1096,30 +1096,256 @@ getUserClientMode()返回是否处于客户端模式
 如果socket不在服务器端则会抛出异常
 getNeedClientAuth()方法返回是否需要验证
 ## 创建安全服务器Socket
+javax.net.SSLServerSocket类的实例
+与SSLSocket相似，这个类的所有构造函数都是保护类型的，而且SSLServerSocket实例由抽象工厂类javax.net.SSLServerSocketFactory创建
+public static ServerSokcetFactory getDefault()
+SSLServerSocketFactory有3个重载的createServerSocket()方法，可以返回SSLServerSocket实例。
+SSLServerSocketFactory.getDefault()返回的工厂模式一般只支持服务器认证，不支持加密。为了同时进行加密，服务器端安全socket需要更多的初始化和设置。在Sun的参考实现中，要由一个com.sun.net.ssl.SSLContext对象负责创建已经充分配置和初始化的安全服务器Socket
+参考实现中必须完成以下步骤
+1)使用keytool生成公开密钥和证书
+2)请第三方认证证书
+3)为使用的算法创建一个SSLContext
+4)为要使用的证书源创建一个TrustManagerFactory
+5)为要使用的密钥类型创建一个KeyManagerFactory
+6)为密钥和证书数据库创建一个KeyStore对象（Oracle默认是JKS）
+7)用密钥和证书填充KeyStore对象
+8)用KeyStore及其口令短语初始化KeyManagerFactory
+9)用KeyManagerFactory中的密钥管理器（必要）、TrustManagerFactory中的信任管理器和一个随机源来初始化上下文。
+## 配置SSLServerSocket
+# 选择密码组
+getSupportedCipherSuites()
+getEnabledCipherSuites()
+setEnabledCipherSuites(String[] suites)
 
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+
+
+
+### 非阻塞IO
+## 示例客户端
+SocketChannel.open()创建java.nio.channels.SocketChannel对象，方法参数接受一个java.net.SocketAddress对象，指示要连接的主机和端口。
+通道以阻塞模式打开，在真正连接之前不会执行，如果不能连接则会抛出异常
+传统的Socket，需要获取输入和输出流，而利用通道则可以直接写入通道本身，不是字节数组，而是要写入ByteBuffer对象。
+ByteBuffer buffer = ByteBuffer.allocate(74);
+将ByteBuffer对象传递给通道的read方法，通道就会从Socket中读取的数据来填充这个缓冲区。返回成功读取并存储在缓冲区的字节数。
+int bytesRead = client.read(buffer)
+默认至少读取一个字节，或者返回-1指示数据结束。
+假定缓冲区中有一些数据，将要被读取并复制到System.out。一般方法是读取一个字节数组，然后写入传统的OutputStream。不过，坚持采用一种完全基于通道的解决方法会更有好处。需要利用Channels工具类。将OutputStream封装到一个通道中 
+WritableByteChannel output = Channels.newChannel(System.out)
+然后就可以将读取的数据写入输出通道中。
+buffer.flip()
+buffer.clear()
+
+## 缓冲区
+除了boolean，Java的所有基本数据类型都有特定的Buffer子类，ByteBuffer，CharBuffer，ShortBuffer,IntBuffer，LongBuffer，FloatBuffer，DoubleBuffer，每个子类中的方法都有相应类型的返回值和参数列表。
+除了数据列表之外，每个缓冲区都记录了信息的4个关键部分
+1.位置 position
+缓冲区中将读取或写入的下一个位置。从0开始，最大值等于缓冲区的大小
+public finai int postion()
+public final Buffer position(int newPosition)
+2.容量 capacity
+可以保存的元素的最大数目，容量值在创建缓冲区时设置，此后不能改变
+public final int capacity()
+3.限度 limit
+缓冲区中可以访问数据的末尾位置，只要不改变限度，就无法读/写超过这个位置的数据，即使缓冲区有更大的容量也没用。
+public final int limit()
+public final Buffer limit(int newLimit)
+4.标记 mark
+客户端指定的索引，通过调用mark()方法可以将标记位置设置为当前位置 reset()方法将当前位置设置为标记位置
+public final Buffer mark()
+public final Buffer reset()
+如果将当前位置设置为低于标记位置，则丢弃这个标记
+与读取InputStream不同，读取缓冲区实际上不会以任何方式改变缓冲区的数据。只可能向前或向后设置位置，从而可以从缓冲区中某个特定位置开始读取。类似的，程序可以调整限度，从而控制将要读取的数据的末尾。只有容量是固定的。
+公共Buffer超类还提供另外几个方法
+clear()将位置设置为0，将限度设置为容量，从而将缓冲区清空，可以重新填充缓冲区。
+public final Buffer clear()
+clear()方法并没有删除缓冲区的老数据，还可以使用决定get方法或者改变限度和位置来读取
+rewind()将位置设置为0，单不改变限度
+public final Buffer rewind()
+允许重新读取缓冲区
+flip()方法将限度设置为当前位置，位置设置为0
+public final Buffer flip()
+希望排空填充的缓冲区时调用（输出）
+remainging()方法返回缓冲区中当前位置和限度之间的元素数
+public final int remaining()
+如果剩余元素大于0hasRemaining()返回true
+public final boolean hasRemaining()
+## 创建缓冲区
+缓冲区类的层次是基于继承的，而不是基于多态。
+每个缓冲区类都有几个工厂方法，以各种方式创建这个类型的特定于实现的子类。空的缓冲区一般由分配allocate方法创建，预填充数据的缓冲区有包装(wrap)方法创建。分配方法通常用于输入，包装方法一般用于输出。
+1.分配
+基本allocate()方法只返回一个有指定固定容量的新缓冲区。这是一个空的缓冲区
+游标位于缓冲区开始位置（0），创建的缓冲区基于Java数组实现，可以通过array()和arrayOffset()方法来访问。
+array()方法实际暴露了缓冲区的私有数据，不推荐使用。
+2.直接分配
+ByteBuffer（但不包括其他缓冲区类）有另外一个allocateDirect()方法，不为缓冲区创建后备数组。虚拟机会对以太网卡、核心内存或其他位置上的缓冲区使用直接内存访问，以此实现直接分配的ByteBuffer。不是必需的，但确实是允许的，可以提升I/O操作的性能。从API角度allocateDirect()的使用和allocate()完全相同。
+在直接缓冲区上使用array()和arrayOffset()会抛出异常。直接缓冲区块，但代价更高，只在缓冲区短时间分配时才分配这种直接缓冲区。不推荐使用
+3.包装
+如果已经有了要输出的数据数组，一般要用缓冲区进行包装。而不是分配一个新缓冲区，然后一部分一部分复制。
+4.填充和排空
+缓冲区时为顺序访问而设计的。每个缓冲区都有一个当前位置，有position()方法标识，从0到缓冲区元素个数之间的某个数。从缓冲区中读取或写入元素时，缓冲区位置将增1.
+缓冲区至多只能填充到其容量大小，如果视图填充的数据超出了初始设置的容量，put()方法会抛出异常。
+如果在写入后直接使用get()从缓冲区中获取数据会得到null字符。Java初始化字符缓冲区时当前位置就是null字符。再次读取写入的数据之前，需要回绕缓冲区。
+buffer.flip()
+会把缓冲区的的限度设置为其位置，将位置重新设置为0，然后就可以排空一个缓冲区
+现在调用get()会将位置前移一个元素，位置达到限度时，hasRemaining返回false，这就被称为排空缓冲区。
+缓冲区还有一些绝对方法，可以在缓冲区指定位置填充和排空，无需更新位置。
+ByteBuffer有以下两个方法
+public abstract byte get(int index)
+public abstract ByteBuffer put(int index, byte b)
+# 批量方法
+即使是使用缓冲区，操作数据块通常也比一次填充和排空一个元素要快。不同缓冲区类都有一些批量方法来填充和排空相应元素类型的数组
+public ByteBuffer get(byte[] dst, int offset, int length)
+public ByteBuffer put(byte[] array, int offset, int length)
+# 数据转换
+Java的所有数据最终都解析为字节，所有基本数据类型 int、double、float等都可以写为字节。任何适当长度的字节序列都可解释为基本类型数据。
+# 视图缓冲区
+如果知道从SocketChannel读取的ByteBuffer只包含一种特定基本数据类型的元素，就有必要创建一个视图缓冲区（view buffer)。
+从当前位置开始由底层ByteBuffer提取数据，修改视图缓冲区会反映到底层缓冲区，返回亦然。不过每个缓冲区都有自己独立的限度、容量、标记和位置。
+public abstract ShortBuffer asShortBuffer()
+...
+虽然可以完全使用IntBuffer类的方法来填充和排空缓冲区，但数据必须使用ByteBuffer对通道进行读写，SocketChannel类只有读/写ByteBuffer的方法，无法读写任何其他类型的缓冲区。
+# 压缩缓冲
+大多数可写缓冲区都支持compact方法
+public abstract ByteBuffer compart()
+压缩时将缓冲区所有剩余数据移到缓冲区的开头，为元素释放更多空间缓冲区的位置设置为数据末尾，从而可以写入更多数据
+使用非IO进行复制时，压缩时一个特别有用的操作。可以将一些数据读入缓冲区，再写出缓冲区，然后压缩数据。这样没写的数据就在缓冲区开头，位置则在剩余数据末尾，从而准备接受更多数据。只利用一个缓冲区就能完成比较随机的交替读写。
+# 复制缓冲区
+经常需要建立缓冲区的副本，从而将相同的信息分发到两个或多个通道中。
+public abstract ByteBuffer duplicate()
+返回值并不是克隆，复制的缓冲区共享相同的数据，如果原来是一个间接缓冲区，那么复制缓冲区会包含相同的后备数据。修改一个缓冲区的数据会反映到另一个缓冲区中。
+尽管共享相同的数据，但初始和复制的缓冲区都有独立的标记、限度好位置。
+# 分片缓冲区
+分片缓冲区时复制的一个变形，分片也会创建一个新缓冲区，与元缓冲区共享数据。不过，分片的起始位置是元缓冲区的当前位置，而且其容量不超过元缓冲区的限度。也就是说，分片是原缓冲区的一个子序列。只包含从当前位置到限度的所有元素。
+public abstract ByteBuffer slice()
+很长的缓冲区时分为多个分片很有帮助
+# 标记和重置
+希望重读某些数据，可以标记和重置缓冲区
+
+## Object方法
+缓冲区类都提供了一般的equals、hashCode和toString方法，还是先了Comparable接口，但不是Serializable或Cloneable的
+当满足以下条件时，会认为两个缓冲区时相等的
+1.具有相同类型
+2.缓冲区剩余的元素个数相同
+3.相同相对位置上的剩余元素彼此相同
+
+## 通道
+通道将缓冲区的数据块移入或移出各种IO源。如文件、socket、数据报等。通道类的层次结构相当复杂，有多个接口和许多可选操作。不过，对于网络编程而言，实际上只有3个重要的通道类
+1.SocketChannel
+2.ServerSocketChannel
+3.DatagramChannel
+# SocketChannel
+用于读写TCP Socket，必须编码到ByteBuffer对象中来完成读、写。每个SocketChannel都与一个对等端Socket对象相关联，可以用于高级配置
+1.连接
+SocketChannel类没有任何公共构造函数，实际上需要使用两个静态open方法来创建新的SocketChannel对象
+有参数的open方法会建立连接，会阻塞知道连接成功或抛出异常
+无参数的open方法则不立即连接，创建一个未连接的socket，以后必须使用connect方法进行连接。
+非阻塞通道，connect方法会立即返回，在等待建立连接时可以做其他操作。在实际使用连接之前，必须调用finishConnect方法
+SocketChannel socketChannel = SocektChannel.open()
+socketChannel.configureBlocking(false);
+socketChannel.connect(new InetSocketAddress(''));
+if (socketChannel.finishConenct) {
+
+}
+isConnected()
+isConnectPending()
+2.读取
+public abstract int read(ByteBuffer dst)
+通道会尽可能多的数据填充缓冲区，然后返回放入的字节数。如果遇到流末尾，通道会用所有剩余的字节填充缓冲区，而且在下一次调用read()时返回-1
+因为数据将存储在缓冲区的当前位置，而这个位置会随着增加更多数据而自动更新，所以可以一直向read()方法传入同一个缓冲区，知道缓冲区被填满。
+也可以从一个源填充多个缓冲区。称为散布
+public abstract long read(ByteBuffer[] dsts, int offset, int length)
+只要列表中的最后一个缓冲区还有剩余空间，就可以继续循环填充
+3.写入
+想要写入，只需填充一个ByteBuffer，将其回绕，然后传给某个写入方法，这个方法在把数据复制到输出时将缓冲区排空
+public abstract int write(ByteBuffer src)
+将多个缓冲区写入一个socket通常也很有用。称为聚集
+public final long write(ByteBuffer[] dsts)
+4.关闭
+像正常Socket一样，在用完通道后应当将其关闭，释放可能使用的端口和其他任何资源。
+public void close()
+如果已经关闭，再进行关闭没有任何效果。isOpen方法检查
+public boolean isOpen() 
+
+## ServerSocketChannel
+只有一个目的，接受入站连接。
+1.创建服务器Socket通道
+ServerSocketFactory.open()
+此方法只创建新的ServerSocketChannel对象，并不打开一个新的服务器Socket。需要使用socket方法获取相应的对等端ServerSocket，然后配置服务器选项，最后绑定端口打开Socket
+2.接受连接
+public absract SocketChannel accept()
+可以在阻塞和非阻塞模式下操作。
+阻塞模式阻塞知道有入站连接
+非阻塞模式在没有入站连接时直接返回null，一般配合Selector使用
+
+## Channels类
+是一个简单的工具类，可以将传统的基于I/O的流、阅读器和书写器包装在通道中，也可以从通道转换为基于I/O流、阅读器和书写器。
+
+
+## 异步通道
+Java7引入AsynchronousSocketChannel和AsynchronousServerSocketChannel类，与SocketChannel和ServerSocketChannel不同的是，读写会立即返回甚至在IO完成之前。数据会有一个Future或CompletionHandler进一步处理。
+
+## 就绪准备
+# Selector类
+唯一的构造函数时保护方法，一般情况下需要使用Selector.open()来创建新的选择器。
+public static Selector open()
+然后是向选择器增加通道，需要使用SelectableChannel类中的register方法，
+public final SelectionKey register(Selector sel, int ops)
+public final SelectionKey register(Selector sel, int ops, Object att)
+SelectionKey中定义了4个命名位常量，用于选择操作类型。
+SelectionKey.OP_ACCEPT
+SelectionKey.OP_CONNECT
+SelectionKey.OP_READ
+SelectionKey.OP_WRITE
+同时关注多个操作，使用或|操作符即可
+不同的通道注册到选择器后，就可以随时查询选择器，找出那些通道已经准备好可以进行处理。
+3个方法
+selectNow 会完成非阻塞选择，如果没有准备好要处理的连接，会立即返回
+另外两个则是阻塞的
+select()
+select(long timeout)
+当知道有通道已经准备好处理时，可以使用selectionKeys方法获取就绪通道
+Set<SelectionKey> selectKeys()
+要依次处理各个SelectionKey，还可以从迭代器中删除键，告诉选择器这个键已经处理，否则选择器在之后的循环中一直通知有这个键。
+最后当准备关闭服务器或不需要选择器后，应当将其关闭
+会释放与选择器关联的所有资源，取消向选择器注册的所有键，并中断被这个选择器的某个选择方法所阻塞的线程。
+# SelectionKey类
+相当于通道的指针，还可以保存一个对象附件，一般会存储这个通道上的连接的状态。
+将一个通道注册到一个选择器时，register()方法会返回SelectionKey对象，不过，通常不需要保留这个引用。selectKeys方法可以在Set中再次返回相同的对象。
+获取一个SelectionKey时，通常需要测试这些键能进行哪些操作
+public fianl boolean isAccpet()
+public fianl boolean isConnectable()
+public fianl boolean isReadable()
+public fianl boolean isWritable()
+public abstract SelectableChannel channel()
+public final Object attachment()
+public abstract void cancel() // 撤销SelectionKey对象的注册，选择器就不会浪费资源去查询是否准备就绪
+
+### UDP
+***** 未看完
+
+
+### IP组播
+***** 未看完
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
