@@ -1,6 +1,7 @@
 package com.sun.health.newwork.netty.first_program;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
@@ -40,7 +41,8 @@ public class EchoClient {
                         }
                     });
             ChannelFuture f = b.connect().sync();
-            f.channel().closeFuture().sync();
+            Channel channel = f.channel();
+            channel.closeFuture().sync();
         } catch (Exception e) {
 
         } finally {
