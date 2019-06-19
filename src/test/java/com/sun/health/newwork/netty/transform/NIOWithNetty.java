@@ -21,20 +21,6 @@ import java.util.concurrent.TimeUnit;
 public class NIOWithNetty {
     @Test
     public void testServer() throws InterruptedException {
-
-        ChannelInboundHandlerAdapter handler = new ChannelInboundHandlerAdapter() {
-
-            @Override
-            public void channelActive(ChannelHandlerContext ctx) throws Exception {
-                ctx.writeAndFlush(Unpooled.copiedBuffer("Hi!\r\n", CharsetUtil.UTF_8)).addListener(ChannelFutureListener.CLOSE);
-            }
-
-            @Override
-            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                cause.printStackTrace();
-                ctx.close();
-            }
-        };
         EventLoopGroup group = new NioEventLoopGroup();
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
@@ -44,7 +30,19 @@ public class NIOWithNetty {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel socketChannel) throws Exception {
-                            socketChannel.pipeline().addLast(handler);
+                            socketChannel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+
+                                @Override
+                                public void channelActive(ChannelHandlerContext ctx) throws Exception {
+                                    ctx.writeAndFlush(Unpooled.copiedBuffer("Hi!\r\n", CharsetUtil.UTF_8)).addListener(ChannelFutureListener.CLOSE);
+                                }
+
+                                @Override
+                                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+                                    cause.printStackTrace();
+                                    ctx.close();
+                                }
+                            });
                         }
                     });
             ChannelFuture bind = serverBootstrap.bind().sync();

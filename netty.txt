@@ -224,6 +224,958 @@ EventLoopGroup的数目	1						2（实际使用一个EventLoopGroup，在两种�
 # 不通过Netty使用OIO和NIO
 # 通过Netty使用OIO和NIO
 ## 传输API
+传输API的核心是interface Channel，用于所有的I/O操作。
+每个Channel都会被分配一个ChannelPipeline和ChannelConfig。ChannelConfig包含了该Channel的所有配置设置，并且支持热更新。由于特定的传输可能具有独特的设置，所有可能会实现为一个ChannelConfig的子类型。
+由于Channel是独一无二的，所有为了保证顺序将Channel声明为Comparable的一个子接口。如果两个不同Channel实例返回了相同的散列码，那么AbstractChannel的compareTo方法的实现都将会抛出一个Error
+ChannelPipeline持有所有将应用于入站和出站以及事件的ChannelHandler实例。这些ChannelHandler实现了应用程序用于处理状态变化以及数据处理的逻辑
+ChannelHandler的典型用途包括：
+1.将数据从一种格式转换为另一个格式
+2.提供异常的通知
+3.提供Channel变为活动的或者非活动的通知
+4.提供当Channel注册到EventLoop或者从EventLoop注销时的通知
+5.提供有关用户自定义事件的通知
+拦截过滤器——ChannelPipeline实现了常见的设计模式——拦截过滤器。
+可以根据需要通过添加或移除ChannelHandler实例来修改ChannelPipeline。通过利用Netty的这项能力可以构建出高度灵活的应用程序。
+除了访问分配的ChannelPipeline和ChannelConfig之外，也可以利用Channel的其他方法
+1.eventLoop						返回分配的EventLoop
+2.pipeline						返回分配的ChannelPipeline
+3.isActive						如果Channel是活动的，则返回true。活动的意义可能依赖于底层的传输。
+4.localAddress					返回本地的SocketAddress
+5.remoteAddress					返回远程的SocketAddress
+6.write							将数据写到远程节点，这个数据将被传递给ChannelPipeline，并且排队直到被冲刷
+7.flush							将之前已写的数据冲刷到底层传输
+8.writeAndFlush					便利方法，等于write接着调用flush方法
+Netty的Channel实现都是线程安全的，因此可以存储一个到Channel的引用，并且每当需要向远处节点写数据时，都可以使用，即使有很多线程同时使用。
+## 内置的传输
+Netty内置了一些开箱即用的传输。因为并不是们所有的传输都支持每一种协议，所以必须选择与使用协议相容的传输。
+NIO				使用channels包作为基础——基于选择器的方式
+Epoll			有JNI驱动的epoll()和非阻塞IO，这个传输支持只有在Linux上可用的多种特性，比NIO快，而且是安全非阻塞的。
+OIO				net包作为基础——使用阻塞流
+Local			可以在VM内部通过管道进行通信的本地传输
+Embedded		Embedded传输，允许使用ChannelHandler而又不需要一个真正的基于网络的传输。用于测试时很有帮助
+# NIO——非阻塞I/O
+NIO提供了一个所有I/O操作的全异步的实现。利用了自NIO子系统被引入JDK时便可用的基于选择器的API
+选择器背后的基本概念是充当一个注册表，可以请求在Channel的状态发生改变时得到通知，可能的状态变化有
+1.新的Channel已被接受并且就绪
+2.Channel连接已经完成
+3.Channel有已经就绪的可供读取的数据
+4.Channel可用于写数据
+选择器运行在一个检查状态变化并且对其作出响应的线程上，在应用程序对状态的改变作出响应之后，选择器重置并重复这个过程。
+状态变化集
+1.OP_ACCEPT			请求在接受新连接并创建Channel时得到通知
+2.OP_CONNECT		请求在建立一个连接时获得通知
+3.OP_READ			请求当数据已经就绪，可以从Channel中读取时获得通知
+4.OP_WRITE			请求可以向Channel中写更多数据时获得通知。
+Netty的传输实现都共有的用户级别API完全隐藏了NIO的内部细节。
+# Epoll——用于Linux的本地非阻塞传输
+Netty的NIO传输基于Java提供的异步/非阻塞网络编程的通用抽象。
+虽然保证Netty的非阻塞API可以在任何平台上使用，但也包含了相应的限制。
+Linux作为高性能网络编程平台，epoll提供了高度可扩展的I/O事件通知特性
+Netty为Linux提供了一组NIO API，其以一种和本身的设计更加一致的方式使用epoll，并且以之中更加轻量的方式使用中断。应用程序运行于Linux则推荐使用。
+# OIO——旧的阻塞I/O
+建立在net包的阻塞实现，所以不是异步的。但适合于某些特殊用途。
+Netty通过SO_TIMEOUT这个socket标志，指定等待一个I/O操作完成的最大毫秒数。如果操作在指定的时间间隔内没有完成，则会抛出SocketTimeoutException。Netty将捕获这个异常并且继续处理循环。在EventLoop下一次运行时，再次尝试。
+# 用于JVM内部通信的Local传输
+用于在同一个JVM中运行的客户端和服务器程序之间的异步通知，也支持所有Netty传输都共同的API
+这个传输中，和服务器Channel相关联的SocketAddress并没有绑定物理网络地址。相反，只要服务器还在运行，就会被存储在注册表里，并在Channel关闭时注销。因为这个传输并不接受真正的网路流量，并不能够和其他传输实现进行互操作，除此之外，和其他传输没有区别。
+# Embedded传输
+额外的传输，可以将一组ChannelHandler作为帮助器嵌入到其他的ChannelHandler内部，通过这种方式，可以扩展一个ChannelHandler的功能而不需要修改内部代码。
+## 传输的用例
+
+### ByteBuf
+## ByteBuf的API
+Netty的数据处理通过两个组件暴露——abstract class ByteBuf和interface ByteBufHolder
+优点
+1.可以被用户自定义的缓冲区类型扩展
+2.通过内置的符合缓冲区类型实现透明的零拷贝
+3.容量可以按需增长（类似于JDK的StringBuilder）
+4.在读和写这两种模式之间切换不需要调用ByteBuffer的flip()方法
+5.读写使用不同的索引
+6.支持方法的链式调用
+7.支持引用计数
+8.支持池化
+## ByteBuf类——Netty的数据容器
+# 工作原理
+ByteBuf维护了两个不同的索引，一个用于读，一个用于写。当从ByteBuf中读取时，readerIndex监视被递增已经被读取的字节数。当写入ByteBuf时，writerIndex也会被递增。
+readerIndex和writerIndex起始值都是0。如果读取字节直到readerIndex超过writerIndex的值，将会抛出异常。
+名称以read或write开头的ByteBuf方法，将会推进其对应的索引，而名称以set或get开头的操作则不会。setter和getter方法将在作为参数传入的相对索引上执行操作
+可以指定ByteBuf的最大容量，移动写索引超过该值将会抛出一个异常，默认为Integer.MAX_VALUE
+# ByteBuf的使用模式
+使用Netty时，将会遇到几种常见的围绕ByteBuf而构建的使用模式。
+1.堆缓冲区
+最常用的ByteBuf模式是将数据存储在JVM的堆控件中。这种模式被称为支撑数组，能在没有池化的情况下提供快速的分配和释放。
+ByteBuf heapBuf = ...;
+if (heapBuf.hasArray()) {
+	byte[] array = heapBuf.array();
+	int offset = heapBuf.arrayOffset() + heapBuf.readerIndex();
+	int length = heapBuf.readableBytes();
+	handleArray(array, offset, length);
+}
+# 直接缓冲区
+NIO在JDK1.4中引入ByteBuffer类允许JVM实现通过本地调用来分配内存。主要为了避免在每次调用本地I/O操作之前（后者之后）将缓冲区的内容复制到一个中间缓冲区（或者从中间缓冲区把内容复制到缓冲区）
+在通过套接字发送之前，JVM本身就会把内部的缓冲区复制到一个直接缓冲区中。
+缺点：相对于堆缓冲区，分配和释放都较为昂贵。
+ByteBuf directBuf = ...;
+if (!directBuf.hasArray()) {
+	int length = directBuf.readableBytes();
+	byte[] array = new byte[length];
+	directBuf.getBytes(directBuf.readerIndex(), array);
+	handleArray(array, 0, length);
+}
+# 符合缓冲区
+能为多个ByteBuf提供一个聚合视图。需要更具需要添加或者删除ByteBuf实例
+Netty通过ByteBuf子类——CompositeByteBuf——实现这个模式。提供了一个将多个缓冲区表示为单个合并缓冲区的虚拟表示。
+CompositeByteBuf中的ByteBuf实例可能同时包含直接内存分配和非直接内存分配。如果只有一个ByteBuf则调用hasArray()返回这一个的hasArray()结果。大于1个返回false
+// Use an array to hold the message parts
+CompositeByteBuf messageBuf = Unpooled.compositeBuffer()
+ByteBuf headerBuf = //
+BYteBuf bodyBuf = //
+messageBuf.addComponents(headerBuf, bodyBuf);
+messageBUf.removeComponent(0)
+for (ByteBuf buf : messageBuf) {
+	System.out.println(buf.toString());
+}
+访问数据
+CompositeByteBuf compBuf = // 
+int length = compBuf.readableBytes();
+byte[] array = new byte[length];
+compBuf.getBytes(compBuf.readIndex, array);
+Netty使用CompositeByteBuf来优化套接字的I/O操作，尽可能地消除了由JDK的缓冲区实现所导致的性能以及内存使用率的惩罚。
+
+## 字节级操作
+ByteBuf提供了许多超出基本读写操作的方法用于修改数据。
+# 随机访问索引
+ByteBuf的索引从零开始，第一个字节索引为0，最后一个为capacity() - 1。
+访问数据
+ByteBuf buf = ...; //
+for (int i = 0; i < buffer.capacity() - 1; i++) {
+	byte b = buffer.getByte(i);
+	Systemo.out.println((char) b));
+}	
+使用需要索引值参数的方法来访问数据不会改变readerIndex和writerIndex，需要有需要可以使用readerIndex(readerIndex)和writerIndex(writerIndex)来修改索引位置
+# 顺序访问索引
+ByteBuf同时具有读写索引，但是JDK原生的ByteBuffer只有一个索引，因此ByteBuffer需要调用flip方法来切换读写模式。
+# 可丢弃字节
+标记为可丢弃字节的分段包含了已经被读过的字节。通过调用discardReadBytes()，可以丢弃并回收控件，这个分段初始大小为0，存储在readerIndex中，
+只推荐在真正需要的时候再丢弃可丢弃字节
+# 可读字节
+ByteBuf的可读字节分段存储了实际数据。新分配的，包装的或者复制的。缓冲区的默认readerIndex为0.任何名称以read或skip开头的操作都将检索或者跳过位于当前readerIndex的数据，并且增加已读字节数
+如果在可读字节为空时调用方法会抛出异常
+ByteBuf buf = ...; //
+while (buf.isReadable()) {
+	System.out.println(buf.readBytes());
+}
+# 可写字节
+可写字节分段是一个拥有未定义内容的、写入就绪的内存区域。新分配的缓冲区的writerIndex为0,。任何名称以write开头的操作都将从当前的writerIndex处开始写数据，并将增加已经写入的字节数。如果写操作的目标也是ByteBuf，并且没有指定源索引的值，则源缓冲区的readerIndex也同样会被增加相同的大。
+如果尝试写入超出容量的数据时将抛出异常
+ByteBuf buf = ...; //
+while (ByteBuf.write() >= 4) {
+	buf.writeInt(random.nextInt());
+}
+# 索引管理
+JDK的InputStream定义了mark和reset方法，分别被用来将流中的当前位置标记为指定的值，以及将流重置到指定位置。
+同样，可以通过调用markReaderIndex()、markWriterIndex()、resetWriterIndex()、resetReaderIndex()来标记和重置ByteBuf的readerIndex和writerIndex。
+也可以通过readerIndex(index)和writerIndex(index)来将索引移动到指定位置。试图移动到无效位置将抛出异常
+可以通过clear方法来将readerIndex和writeIndex置为0，但并不会清除内存中的内容。
+调用clear方法比discardReadBytes方法轻量许多，只是重置索引而不会复制任何内容。
+# 查找操作
+ByteBuf中有多种可以用于确定指定值的索引的方法。最简单是indexOf方法。较复杂的查找可以通过需要一个ByteBufProcessor作为参数的方法达成。这个接口只定义了一个方法
+boolean process(byte value)
+高版本中此接口被废弃，请使用其他
+将检查输入值是否是正在查找的值
+# 派生缓冲区
+为ByteBuf提供了以专门的方式来呈现其内容的视图，通过以下方法创建
+1.duplicate()
+2.slice()
+3.slice(int, int)
+4.Unpooled.unmodifiableBuffer(...)
+5.order(ByteOrder)
+6.readSlice(int)
+每个方法都将返回一个新的ByteBuf实例，具有自己的读写索引和标记索引。内部存储和JDK的ByteBuffer一样是共享的。
+ByteBuf复制，使用copy()或copy(int, int)方法，这两个方法返回的ByteBuf将拥有独立的数据副本
+# 读写操作
+1.get() set() 从给定的索引开始，并且保持索引不变
+2.read() write() 从给定的索引开始，并且会根据已经访问过的字节数对索引进行调整
+常用 get()方法
+getBoolean(int) 返回给定索引处的 Boolean 值
+getByte(int) 返回给定索引处的字节
+getUnsignedByte(int) 将给定索引处的无符号字节值作为 short 返回
+getMedium(int) 返回给定索引处的 24 位的中等 int 值
+getUnsignedMedium(int) 返回给定索引处的无符号的 24 位的中等 int 值
+getInt(int) 返回给定索引处的 int 值
+getUnsignedInt(int) 将给定索引处的无符号 int 值作为 long 返回
+getLong(int) 返回给定索引处的 long 值
+getShort(int) 返回给定索引处的 short 值
+getUnsignedShort(int) 将给定索引处的无符号 short 值作为 int 返回
+getBytes(int, ...) 将该缓冲区中从给定索引开始的数据传送到指定的目的地
+常用 set()方法
+setBoolean(int, boolean) 设定给定索引处的 Boolean 值
+setByte(int index, int value) 设定给定索引处的字节值
+setMedium(int index, int value) 设定给定索引处的 24 位的中等 int 值
+setInt(int index, int value) 设定给定索引处的 int 值
+setLong(int index, long value) 设定给定索引处的 long 值
+setShort(int index, int value) 设定给定索引处的 short 值
+常用 read()方法
+readBoolean() 返回当前 readerIndex 处的 Boolean，并将 readerIndex 增加 1
+readByte() 返回当前 readerIndex 处的字节，并将 readerIndex 增加 1
+readUnsignedByte() 将当前 readerIndex 处的无符号字节值作为 short 返回，并将
+readerIndex 增加 1
+readMedium() 返回当前 readerIndex 处的 24 位的中等 int 值，并将 readerIndex
+增加 3
+readUnsignedMedium() 返回当前 readerIndex 处的 24 位的无符号的中等 int 值，并将
+readerIndex 增加 3
+readInt() 返回当前 readerIndex 的 int 值，并将 readerIndex 增加 4
+readUnsignedInt() 将当前 readerIndex 处的无符号的 int 值作为 long 值返回，并将
+readerIndex 增加 4
+readLong() 返回当前 readerIndex 处的 long 值，并将 readerIndex 增加 8
+readShort() 返回当前 readerIndex 处的 short 值，并将 readerIndex 增加 2
+readUnsignedShort() 将当前 readerIndex 处的无符号 short 值作为 int 值返回，并将
+readerIndex 增加 2
+readBytes(ByteBuf |
+byte[] destination,
+int dstIndex [,int
+length])
+将当前 ByteBuf 中从当前 readerIndex 处开始的（如果设置了，
+length 长度的字节）数据传送到一个目标 ByteBuf 或者 byte[]，从
+目标的 dstIndex 开始的位置。本地的 readerIndex 将被增加已经传
+输的字节数
+重用 write方法
+writeBoolean(boolean) 在当前 writerIndex 处写入一个 Boolean，并将 writerIndex 增加 1
+writeByte(int) 在当前 writerIndex 处写入一个字节值，并将 writerIndex 增加 1
+writeMedium(int) 在当前 writerIndex 处写入一个中等的 int 值，并将 writerIndex
+增加 3
+writeInt(int) 在当前 writerIndex 处写入一个 int 值，并将 writerIndex 增加 4
+writeLong(long) 在当前 writerIndex 处写入一个 long 值，并将 writerIndex 增加 8
+writeShort(int) 在当前 writerIndex 处写入一个 short 值，并将 writerIndex 增加 2
+writeBytes(source ByteBuf |byte[] [,int srcIndex,int length])从当前 writerIndex 开始，传输来自于指定源（ByteBuf 或者 byte[]）的数据。如果提供了 srcIndex 和 length，则从 srcIndex 开始读取，并且处理长度为 length 的字节。当前 writerIndex 将会被增加所写入的字节数
+# 更多的操作
+isReadable() 如果至少有一个字节可供读取，则返回 true
+isWritable() 如果至少有一个字节可被写入，则返回 true
+readableBytes() 返回可被读取的字节数
+writableBytes() 返回可被写入的字节数
+capacity() 返回 ByteBuf 可容纳的字节数。在此之后，它会尝试再次扩展直
+到达到 maxCapacity()
+maxCapacity() 返回 ByteBuf 可以容纳的最大字节数
+hasArray() 如果 ByteBuf 由一个字节数组支撑，则返回 true
+array() 如果 ByteBuf 由一个字节数组支撑则返回该数组；否则，它将抛出一个
+UnsupportedOperationException 异常
+
+## ByteBufHolder接口
+除了实际的数据负载之外，还需要存储各种属性值。HTTP响应就是一个很好的例子，除了标识为字节的内容之外，还包含状态码、cookie等
+ByteBufHolder为Netty的高级特性提供了支持，如缓存区池化，其中可以从池中借用ByteBuf，并且在需要时自动释放
+ByteBufHolder只有几种用于访问底层数据和引用计数的方法
+content()			返回由这个ByteBufHolder所持有的ByteBuf
+copy()				返回这个ByteBufHolder的一个深拷贝，包括一个其所包含的ByteBuf的非共享拷贝
+duplicate()			返回这个ByteBufHolder的一个浅拷贝，包括一个其所包含的ByteBuf的共享拷贝
+## ByteBuf分配
+# 按需分配：ByteBufAllocator接口
+为了降低分配和释放内存的开销，Netty通过interface ByteBufAllocator实现了池化，可以用于分配所描述过的任意类型的ByteBuf实例。
+ByteBufAllocator的方法
+buffer()														返回一个基于堆内存或者直接内存存储的ByteBuf
+buffer(int initialCapacity)										有初始容量大小
+buffer(int initialCapacity, int maxInitialCapacity)				有初始容量大小和最大容量大小
+
+heapBuffer()													返回一个基于堆内存存储的ByteBuf
+heapBuffer(int initialCapacity)									有初始容量大小
+heapBuffer(int initialCapacity, int maxInitialCapacity)			有初始容量大小和最大容量大小
+
+directBuffer()													返回一个基于直接内存存储的ByteBuf
+directBuffer(int initialCapacity)								有初始容量大小
+directBuffer(int initialCapacity, int maxInitialCapacity)		有初始容量大小和最大容量大小
+
+compositeBuffer()												返回一个基于堆内存和直接内存混合存储的ByteBuf
+compositeBuffer(int initialCapacity)							有初始容量大小
+compositeBuffer(int initialCapacity, int maxInitialCapacity)	有初始容量大小和最大容量大小
+
+ioBuffer()														返回一个用于套接字的I/O操作的ByteBuf
+可以通过Channel（每个都可以有一个不同的ByteBufAllocator实例）或者绑定到ChannelHandler的ChannelHandlerContext获取一个到ByteBufAllocator的引用
+Netty提供了两种ByteBufAllocator实现：PooledByteBufAllocator和UnpooledByteBufAllocator。前者池化了ByteBuf的实例以提高性能并最大限度地减少内存碎片。此实现使用了称为jemalloc的已被大量现代操作系统所采用的高效方法来分配内存。后者实现不池化ByteBuf实例，并且每次调用都会返回一个新的实例
+默认使用PooledByteBufAllocator，但很容易通过ChannelConfig API或者引导应用程序时指定不同的分配器来更改。
+# Unpooled缓冲区
+在某些情况下，未能获得ByteBufAllocator的引用，Netty提供了称为Unpooled的工具类，提供了静态的辅助方法来创建未池化的ByteBuf实例
+重要方法
+buffer()
+buffer(int initialCapacity)
+buffer(int initialCapacity, int maxCapacity)
+返回一个未池化的基于堆内存存储的ByteBuf
+directBuffer()
+directBuffer(int initialCapacity)
+directBuffer(int initialCapacity, int maxCapacity)
+返回一个未池化的基于直接内存存储的 ByteBuf
+wrappedBuffer() 返回一个包装了给定数据的 ByteBuf
+copiedBuffer() 返回一个复制了给定数据的 ByteBuf
+ByteBufUtiil类
+提供了用于操作ByteBuf的静态的辅助方法。API是通用的，与池化无关。
+最有价值的可能是hexdump()方法，以十六进制的表示形式打印ByteBuf的内容。
+还有一个有用的方法是Boolean equals(ByteBuf, ByteBuf) 用于判断两个ByteBuf实例的相等性。
+## 引用计数
+是一种通过在某个对象所持有的资源不再被其他对象引用时释放对象所持有的资源来优化内存使用和性能的技术。
+Netty在第四版中为ByteBuf和ByteBufHolder引入了引用计数技术，实现了inerface ReferenceCounted
+
+### ChannelHandler和ChannelPipeline
+## ChannelHanlder家族
+# Channel生命周期
+Interface Channel定义了一组和ChannelInboundHandler API密切相关的简单但功能强大的状态模型
+Channel的生命周期状态
+ChannelUnregistered			Channel已经创建但是还未注册到EventLoop上
+ChannelRegistered			Channel已经被注册到了EventLoop
+ChannelActive				Channel处于活跃状态（已经连接到远程节点）可以接受和发送数据
+ChannelInactive				Channel没有连接到远程节点
+ChannelRegistered -> ChannelActive -> ChannelInactive -> ChannelUnregistered
+当这些状态发生改变时，将会生成对应的事件，这些事件将会转发给ChannelPipeline中的ChannelHandler，做出响应
+# ChannelHandler生命周期
+Interface ChannelHandler被添加到ChannelPipeline中或者从ChannelPipeline中移除时会调用这些操作。
+handlerAdded			当把ChannelHandler添加到ChannelPipeline中时被调用
+handlerRemoved			当从ChannelPipeline中移除ChannelHandler是被调用
+exceptionCaught			当处理过程中在ChannelPipeline中有错误产生时被调用
+# ChannelnboundHandler接口
+生命周期方法在数据被接受时或者与其对应的Channel状态发生改变时调用
+channelRegistered 当 Channel 已经注册到它的 EventLoop 并且能够处理 I/O 时被调用
+channelUnregistered 当 Channel 从它的 EventLoop 注销并且无法处理任何 I/O 时被调用
+channelActive 当 Channel 处于活动状态时被调用；Channel 已经连接/绑定并且已经就绪
+channelInactive 当 Channel 离开活动状态并且不再连接它的远程节点时被调用
+channelReadComplete 当Channel上的一个读操作完成时被调用 ①
+channelRead 当从 Channel 读取数据时被调用
+ChannelWritabilityChanged 当 Channel 的可写状态发生改变时被调用。用户可以确保写操作不会完成得太快（以避免发生 OutOfMemoryError）或者可以在 Channel 变为再次可写时恢复写入。可以通过调用 Channel 的 isWritable()方法来检测Channel 的可写性。 与可写性相关的阈值可以通过 Channel.config().setWriteHighWaterMark()和 Channel.config().setWriteLowWaterMark()方法来设置
+userEventTriggered 当 ChannelnboundHandler.fireUserEventTriggered()方法被调用时被调用，因为一个 POJO 被传经了 ChannelPipeline
+当某个ChannelInboundHandler的实现重写channelRead()方法时，将负责显式地释放与池化ByteBuf实例相关的内存。Netty提供了一个使用方法ReferenceCountUtil.release()
+@Sharable
+public class DiscardHandler extends ChannelInboundHanlderAdapter {
+	public void channelRead(ChannelHandlerContext ctx, Object msg) {
+		ReferenceCountUtil.relesase(msg);
+	}	
+}
+将使用WARN级别的日志消息记录未释放的资源。
+更加简单的方式是使用SimpleChannelInboundHandler，会自动释放资源。
+# ChannelOutboundHandler接口
+ChannelOutboundHandler的一个强大的功能是可以按需推迟操作或者事件，使得可以通过一些复杂的方法来处理请求。
+bind(ChannelHandlerContext,SocketAddress,ChannelPromise)当请求将 Channel 绑定到本地地址时被调用
+connect(ChannelHandlerContext,SocketAddress,SocketAddress,ChannelPromise)当请求将 Channel 连接到远程节点时被调用
+disconnect(ChannelHandlerContext,ChannelPromise)当请求将 Channel 从远程节点断开时被调用
+close(ChannelHandlerContext,ChannelPromise) 当请求关闭 Channel 时被调用
+deregister(ChannelHandlerContext,ChannelPromise)当请求将 Channel 从它的 EventLoop 注销时被调用
+read(ChannelHandlerContext) 当请求从 Channel 读取更多的数据时被调用
+flush(ChannelHandlerContext) 当请求通过 Channel 将入队数据冲刷到远程节点时被调用
+write(ChannelHandlerContext,Object,ChannelPromise)当请求通过 Channel 将数据写到远程节点时被调用
+ChannelPromise和ChannelFuture
+ChannelOutboundHandler中的大部分方法都需要一个ChannelPromise参数，以便在操作完成时得到通知。ChannelPromise是ChannelFuture的一个子类，定义了一些可写方法，比如setSuccess()和setFailure()，从而使得ChannelFuture不可变
+# ChannelHandler适配器
+ChannelInboundHandlerAdapter和ChannelOutboundHandlerAdapter类作为自定义ChannelHandler的起始点。分别提供了ChannelInboundHandler和ChannelOutboundHandler的基本实现。通过扩展抽象类ChannelHandlerAdapter，获得共同的超接口ChannelHandler方法
+ChannelHandlerAdapter还提供了使用方法isSharabel()，如果对应实现被标注为@Sharable则返回true，表示可以被添加到多个ChannelPipeline中。（同一个实例可以被反复使用 没有线程安全问题）
+在ChannelInboundHandlerAdapter和ChannelOutboundHandlerAdapter中所提供的方法体调用其关联的ChannelHandlerContext上的等效方法，从而将事件转发到ChannelPipeline中的下一个ChannelHandler中。
+# 资源管理
+通过调用ChannelInboundHandler::channelRead()或者ChannelOutboundHandler::write()方法来处理数据时，需要确保没有任何资源泄漏。Netty使用引用计数来处理池化的ByteBuf，在完全使用某个ByteBuf后，调整引用计数很重要。
+为了帮助诊断资源泄漏问题，提供了ResourceLeakDetector对应用程序中的缓冲区分配做大约1%的采样来检测内存泄漏。
+Netty目前定义4中泄漏检测级别
+1.DISABLED	禁用泄漏检测
+2.SIMPLE	使用1%的默认采样率检测并报告任何发现的泄漏
+3.ADVANCED  使用默认采样率，报告所发现的任何泄漏以及对应的消息被访问的位置
+4.PARANOID  类似ADVANCED，其将会对每次访问都进行采样，对性能将会有很大影响
+使用 java -Dio.netty.leakDetectionLevel=ADVANCED
+ChannelInboundHandler::read()方法中释放资源
+ReferenceCountUtil.release(msg);
+ChannelOutboundHandler::write()方法中释放资源
+ReferenceCountUtil.release(msg);
+channelPromise.setSuccess(); // 通知以处理 否则可能出现ChannelFutureListener收不到某个消息已经被处理的情况
+总之，如果一个消息被消费或者丢弃，并且没有传递给ChannelPipeline中的下一个ChannelHandler，则需要调用ReferenceCountUtil.release()。消息达到了实际的传输层，那么当他被写入或者Channel关闭时，都将被自动释放。
+## ChannelPipeline接口
+每一个新创建的Channel都将被分配一个新的ChannelPipeline，这项关联时永久性的。Channel既不能附加另一个ChannelPipeline，也不能分离当前的。
+根据事件起源，事件将会被ChannelInboundHandler或者ChannelOutboundHandler处理。通过调用ChannelHandlerContext实现，转发给同一超类型的下一个ChannelHandler
+ChannelHandlerContext
+使得ChannelHandler能够和ChannelPipeline以及其他ChannelHandler交互。ChannelHandler可以通知所属的ChannelPipeline中的下一个ChannelHandler，甚至可以动态修改ChannelPipeline
+ChannelHandlerContext具有丰富的用于处理事件和执行I/O操作的API
+在ChannelPipeline传播事件时，会测试ChannelPipeline中的下一个ChannelHandler类型是否和事件的运动方向相匹配。如果不匹配，则跳过该ChannelHandler并前进到下一个，直到匹配。
+# 修改ChannelPipeline
+ChannelHandler可以通过添加、删除或者替换其他的ChannelHandler来实时修改ChannelPipeline的布局
+AddFirst addBefore		将一个ChannelHandler添加到ChannelPipeline中
+addAfter addLast
+remove					移除ChannelPipeline
+replace					替换ChannelHandler
+ChannelHandler的执行和阻塞
+每个ChannelHandler都是通过EventLoop（I/O线程）来处理传递的事件的。所以不要阻塞这个线程，会对整体I/O处理产生负面的影响。
+还有别的通过类型或者名称访问ChannelHandler的方法
+get			通过类型或者名称返回ChannelHandler
+context		返回与ChannelHandler绑定的ChannelHandlerContext
+names 		返回channelPipeline中所有Handler的名称
+# 触发事件
+ChannelPipeline的API公开了用于调用入站和出站操作的附加方法
+fireChannelRegistered 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelRegistered(ChannelHandlerContext)方法
+fireChannelUnregistered 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelUnregistered(ChannelHandlerContext)方法
+fireChannelActive 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelActive(ChannelHandlerContext)方法
+fireChannelInactive 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelInactive(ChannelHandlerContext)方法
+fireExceptionCaught 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+exceptionCaught(ChannelHandlerContext, Throwable)方法
+fireUserEventTriggered 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+userEventTriggered(ChannelHandlerContext, Object)方法
+fireChannelRead 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelRead(ChannelHandlerContext, Object msg)方法
+fireChannelReadComplete 调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelReadComplete(ChannelHandlerContext)方法
+fireChannelWritabilityChanged
+调用 ChannelPipeline 中下一个 ChannelInboundHandler 的
+channelWritabilityChanged(ChannelHandlerContext)方法
+
+bind 将 Channel 绑定到一个本地地址，这将调用 ChannelPipeline 中的下一个
+ChannelOutboundHandler 的 bind(ChannelHandlerContext, SocketAddress, ChannelPromise)方法
+connect 将 Channel 连接到一个远程地址，这将调用 ChannelPipeline 中的下一个
+ChannelOutboundHandler 的 connect(ChannelHandlerContext, SocketAddress, ChannelPromise)方法
+disconnect 将 Channel 断开连接。这将调用 ChannelPipeline 中的下一个 ChannelOutboundHandler 的 disconnect(ChannelHandlerContext, Channel Promise)方法
+close 将 Channel 关闭。这将调用 ChannelPipeline 中的下一个 ChannelOutboundHandler 的 close(ChannelHandlerContext, ChannelPromise)方法
+deregister 将 Channel 从它先前所分配的 EventExecutor（即 EventLoop）中注销。这将调
+用 ChannelPipeline 中的下一个 ChannelOutboundHandler 的 deregister
+(ChannelHandlerContext, ChannelPromise)方法
+flush 冲刷Channel所有挂起的写入。这将调用ChannelPipeline中的下一个ChannelOutboundHandler 的 flush(ChannelHandlerContext)方法
+write 将消息写入 Channel。这将调用 ChannelPipeline 中的下一个 ChannelOutboundHandler的write(ChannelHandlerContext, Object msg, ChannelPromise)方法。注意：这并不会将消息写入底层的 Socket，而只会将它放入队列中。
+要将它写入 Socket，需要调用 flush()或者 writeAndFlush()方法
+writeAndFlush 这是一个先调用 write()方法再接着调用 flush()方法的便利方法
+read 请求从 Channel 中读取更多的数据。这将调用 ChannelPipeline 中的下一个
+ChannelOutboundHandler 的 read(ChannelHandlerContext)方法
+总结
+1.ChannelPipeline保存了与Channel相关联的ChannelHandler
+2.ChannelPipeline可以根据需要，通过添加或者删除ChannelHandler来动态的修改
+3.ChannelPipeline有着丰富的API用于被调用，以响应入站和出站事件
+## ChannelHandlerContext接口
+代表ChannelHandler和ChannelPipeline之间的关联。每当有ChannelHandler被添加，都会创建ChannelHandlerContext。主要功能是管理所关联的ChannelHandler和同一个ChannelPipeline中其他ChannelHandler进行交互
+ChannelHandlerContext有很多方法，其中一些也存在于Channel和ChannelPipeline本身上，重要的不同在于，如果调用Channel或ChannelPipeline上的这些方法，将沿着这个链传播。而调用ChannelHandlerContext上的则只会传播个给下一个能够处理该事件的ChannelHandler
+alloc 返回和这个实例相关联的 Channel 所配置的 ByteBufAllocator
+bind 绑定到给定的 SocketAddress，并返回 ChannelFuture
+channel 返回绑定到这个实例的 Channel
+close 关闭 Channel，并返回 ChannelFuture
+connect 连接给定的 SocketAddress，并返回 ChannelFuture
+deregister 从之前分配的 EventExecutor 注销，并返回 ChannelFuture
+disconnect 从远程节点断开，并返回 ChannelFuture
+executor 返回调度事件的 EventExecutor
+fireChannelActive 触发对下一个 ChannelInboundHandler 上的
+channelActive()方法（已连接）的调用
+fireChannelInactive 触发对下一个 ChannelInboundHandler 上的
+channelInactive()方法（已关闭）的调用
+fireChannelRead 触发对下一个 ChannelInboundHandler 上的
+channelRead()方法（已接收的消息）的调用
+fireChannelReadComplete 触发对下一个ChannelInboundHandler上的
+channelReadComplete()方法的调用
+fireChannelRegistered 触发对下一个 ChannelInboundHandler 上的
+fireChannelRegistered()方法的调用
+fireChannelUnregistered 触发对下一个 ChannelInboundHandler 上的
+fireChannelUnregistered()方法的调用
+fireChannelWritabilityChanged 触发对下一个 ChannelInboundHandler 上的
+fireChannelWritabilityChanged()方法的调用
+fireExceptionCaught 触发对下一个 ChannelInboundHandler 上的
+fireExceptionCaught(Throwable)方法的调用
+fireUserEventTriggered 触发对下一个 ChannelInboundHandler 上的
+fireUserEventTriggered(Object evt)方法的调用
+handler 返回绑定到这个实例的 ChannelHandler
+isRemoved 如果所关联的 ChannelHandler 已经被从 ChannelPipeline
+中移除则返回 true
+name 返回这个实例的唯一名称
+pipeline 返回这个实例所关联的 ChannelPipeline
+read 将数据从Channel读取到第一个入站缓冲区；如果读取成功则触
+发 ①一个channelRead事件，并（在最后一个消息被读
+write 通过这个实例写入消息并经过 ChannelPipeline
+writeAndFlush 通过这个实例写入并冲刷消息并经过 ChannelPipeline
+1.ChannelHandlerContext和ChannelHandler之间的关联（绑定）是永远不会改变的，所以缓存对它的引用是安全的
+2.相对于其他类的同名方法，ChannelHandlerContext的方法将产生更短的事件流，应该尽可能利用这个特性来获得最大的性能。
+# 使用ChannelHandlerContext
+访问ChannelHandler
+ctx.channel()
+访问ChannelPipeline
+ctx.pipeline()
+直接在ChannelHandlerContext上调用方法
+# ChannelHandler和ChannelHandlerContext的高级用法
+
+## 异常处理
+# 处理入站异常
+如果处理入站事件的过程有异常抛出，将从在ChannelInboundHandler里被触发的哪一点开始流经ChannelPipeline。想处理需要在ChannelInboundHandlerAdapter中重写
+public void exceptionCaught()
+因为异常将会继续按照入站方向流动（就像所有入站事件一样），所以实现处理逻辑的Handler通常位于最后。
+总结：
+1.默认实现是简单的将当前异常转发给ChannelPipeline中的下一个ChannelHandler
+2.如果异常达到了ChannelPipeline的尾端则会标记为未被处理
+3.想要定义自定义的处理逻辑，需要重写exceptCaught()方法， 然后按需决定是否续集传播
+# 处理出站异常
+基于以下通知机制
+1.每个出站操作都将返回一个ChannelFuture，注册到了ChannelFUture的ChannelFutureListener将在操作完成时被通知该操作是否成功
+2.几乎所有的ChannelOutboundHandler上的方法都会传入ChannelPromise的实例，作为ChannelFuture的子类，ChannelPromise也可以被分配用于异步通知的监听器。但是，ChannelPromise还具有提供立即通知的可写
+添加ChannelFutureListener只需要ChannelFuture的addListener方法。
+
+
+### EventLoop和线程模型
+## EventLoop接口
+运行任务来处理在链接的生命周期内发生的事件是任何网络框架的基本功能。与之相应的编程上的构造通常被称为事件循环——Netty使用EventLoop来适配术语
+EventLoop是协同设计的一部分，采用了两个基本的API：并发和网络编程
+io.netty.concurrent包构建在JDK的java.util.concurrent包上，用来提供线程执行器
+一个EventLoop将由一个永远不会改变的Thread驱动，同时任何可以直接提交给EventLoop实现，以立即执行或者调度执行。根据配置和可用核心的不同，可能会创建多个EventLoop实例用以优化资源的使用，并且单个EventLoop可能会被指派用于服务多个Channel
+Netty的EventLoop继承ScheduledExecutorService的同时，只定义了一个parent()方法。用于返回当前EventLoop实例所属的EventLoopGroup的引用
+## 任务调度
+# JDK的任务调度API
+newScheduledThreadPool(
+int corePoolSize)
+newScheduledThreadPool(
+int corePoolSize,
+ThreadFactorythreadFactory)
+创建一个 ScheduledThreadExecutorService，
+用于调度命令在指定延迟之后运行或者周期性地执
+行。它使用 corePoolSize 参数来计算线程数
+newSingleThreadScheduledExecutor()
+newSingleThreadScheduledExecutor(
+ThreadFactorythreadFactory)
+创建一个 ScheduledThreadExecutorService，
+用于调度命令在指定延迟之后运行或者周期性地执
+行。它使用一个线程来执行被调度的任务
+ScheduleExecutorService es = Executors.newSingleScheduledExecutor();
+es.schedule(() -> {
+
+}, 60, TimeUtil.SECOND);
+es.shutdown();
+# 使用EventLoop调度任务
+ScheduledExecutorService的实现具有局限性，例如，作为线程池管理的一部分，将会有额外的线程创建，如果有大量任务被紧凑的调度，将会成为瓶颈。
+Netty通过Channel的EventLoop实现任务调度解决这一问题。
+
+## 实现细节
+# 线程管理
+Netty线程模型的卓越性能取决于当前执行的Thread的身份的确定。
+如果（当前）调用线程正是支撑EventLoop的线程，那么所提交的代码将会被（直接）执行。否则，EventLoop将调度该任务以便稍后执行，并将其放入内部队列中。EventLoop下次处理事件时，会执行队列中的任务/事件。
+每个EventLoop都有自己的任务队列，独立于其他的EventLoop。
+永远不要将一个长时间运行的任务放入执行队列中，因此将阻塞同一线程上执行的任何其他任务。如果必须要进行阻塞调用或者执行长时间运行的任务，建议使用一个专门的EventExecutor。
+# EventLoop/线程的分配
+服务于Channel的I/O和事件的EventLoop包含在EventLoopGroup中，根据不同的传输实现，EventLoop的创建和分配也不同
+1.异步传输
+只使用少量的EventLoop（以及和它们相关联的Thread），而且在当前的线程模型中，可能会被多个Channel所共享。这使得可以通过尽量少的Thread来支撑大量的Channel，而不是每个Channel分配一个Thread
+EventLoopGroup负责为每个新创建的Channel分配一个EventLoop，在当前实现中，使用顺序循环（round-robin）的方式进行分配以获取一个均衡的分布，并且相同的EventLoop可能会被分配给多个Channel（可能以后会改变）
+一旦一个Channel被分配给一个EventLoop，在整个生命周期中都使用这个EventLoop（以及相关联的Thread）。线程安全和同步问题得以解决
+EventLoop的分配方式对ThreadLocal的使用的影响。因为一个EventLoop通常会被用于支撑多个Channel，所以对于所有相关联的Channel而言,ThreadLocal都是一样的。使得对于实现状态追踪等功能来说是糟糕的选择。
+2.阻塞传输
+每个Channel都将分配一个不同的EventLoop（以及关联Thread）。
+
+###引导
+## Bootstrap类
+引导类的层次结构包括一个抽象的父类（AbstractBootstrap）和两个具体的引导子类（Bootstrap、ServerBootstrap）
+相对于将具体的引导类分别看做用于服务器和客户端的引导来说，记住本意用来支撑不同的应用程序的功能将有所脾益。服务器致力于使用一个父Channel来接受来自应用程序的连接，并创建子Channel以用于之间的通信。而客户端最可能只需要一个单独的，没有父Channel的Channel来用于所有的网络交互。
+为什么引导类实现Cloneable接口
+可能需要创建多个具有类似配置或者完全相同配置的Chanenl，为了支持这种模式而又不需要为每个Channel都创建并配置一个新的引导类实例，AbstractBootstrap被标记为Cloneable。在一个已经配置完成的引导类实例上调用clone()方法将返回另一个可以立即被使用的引导类实例
+这种方式只会创建引导类实例的EventLoopGroup的一个浅拷贝。
+## 引导客户端和无连接协议
+Bootstrap类被用于客户端或者使用了无连接协议的应用程序中。
+Bootstrap group(EventLoopGroup) 设置用于处理 Channel 所有事件的 EventLoopGroup
+Bootstrap channel(
+Class<? extends C>)
+Bootstrap channelFactory(
+ChannelFactory<? extends C>)
+channel()方法指定了Channel的实现类。如果该实现类
+没提供默认的构造函数 ①，可以通过调用channelFactory()方法来指定一个工厂类，它将会被bind()方
+法调用
+Bootstrap localAddress(
+SocketAddress)
+指定 Channel 应该绑定到的本地地址。如果没有指定，
+则将由操作系统创建一个随机的地址。或者，也可以通过
+bind()或者 connect()方法指定 localAddress
+<T> Bootstrap option(
+ChannelOption<T> option,
+T value)
+设置 ChannelOption，其将被应用到每个新创建的
+Channel 的 ChannelConfig。这些选项将会通过
+bind()或者 connect()方法设置到 Channel，不管哪
+个先被调用。 这个方法在 Channel 已经被创建后再调用
+将不会有任何的效果。支持的 ChannelOption 取决于
+使用的 Channel 类型。
+参见 8.6 节以及 ChannelConfig 的 API 文档，了解所
+使用的 Channel 类型
+<T> Bootstrap attr(
+Attribute<T> key, T value)
+指定新创建的 Channel 的属性值。这些属性值是通过
+bind()或者 connect()方法设置到 Channel 的， 具体
+取决于谁最先被调用。 这个方法在 Channel 被创建后将
+不会有任何的效果。参见 8.6 节
+Bootstrap
+handler(ChannelHandler)
+设置将被添加到 ChannelPipeline 以接收事件通知的
+ChannelHandler
+Bootstrap clone() 创建一个当前 Bootstrap 的克隆，其具有和原始的
+Bootstrap 相同的设置信息
+Bootstrap remoteAddress(
+SocketAddress)
+设置远程地址。或者，也可以通过 connect()方法来指
+定它
+ChannelFuture connect() 连接到远程节点并返回一个 ChannelFuture，其将 会在
+连接操作完成后接收到通知
+ChannelFuture bind() 绑定 Channel 并返回一个 ChannelFuture，其将会在绑
+定操作完成后接收到通知，在那之后必须调用 Channel.
+connect()方法来建立连接
+# 引导客户端
+Bootstrap类负责为客户端和使用无连接协议的应用程序创建Channel
+EventLoopGroup group = new NioEventLoopGroup();
+ChannelHandler handler = new SimpleChannelInBoundHandler<ByteBuf>();
+Bootstrap b = new Bootstrap();
+b.group(group)
+	.channel(NioSocketChannel.class)
+	.remoteAddress(new InetSocketAddress("localhost", 9362)
+	.handler(new ChanenlInitializer<SocketChannel>() {
+		public 	void initChanenl(SocketChannel ch) {
+			ch.pipeline().addLast(handler);
+		}
+	});
+ChannelFuture future = b.connect();
+future.addListener(new ChannelFutureChannel() {
+	public void operationComplete(ChannelFuture channelFuture) {
+		if (channelFuture.isSuccess()) {
+		
+		} else {
+		
+		}
+	}
+});
+# Channel和EventLoopGroup的兼容性
+channel
+├───nio
+│ 		NioEventLoopGroup
+├───oio
+│ 		OioEventLoopGroup
+└───socket
+	├───nio
+	│ 		NioDatagramChannel
+	│ 		NioServerSocketChannel
+	│ 		NioSocketChannel
+	└───oio
+			OioDatagramChannel
+			OioServerSocketChannel
+			OioSocketChannel
+前缀需一致，保持兼容性
+引导过程中，在调用bind()或connect()方法之前，必须调用一下方法来设置所需的组件
+grou()
+channel()或channelFactory()
+handler()
+## 引导服务器
+# ServerBootstrap类
+group 设置 ServerBootstrap 要用的 EventLoopGroup。这个 EventLoopGroup
+将用于 ServerChannel 和被接受的子 Channel 的 I/O 处理
+channel 设置将要被实例化的 ServerChannel 类
+channelFactory 如果不能通过默认的构造函数 ①创建Channel， 那么可以提供一个ChannelFactory
+localAddress 指定 ServerChannel 应该绑定到的本地地址。如果没有指定， 则将由操作系
+统使用一个随机地址。或者，可以通过 bind()方法来指定该 localAddress
+option 指定要应用到新创建的 ServerChannel 的 ChannelConfig 的 ChannelOption。 这些选项将会通过 bind()方法设置到 Channel。在 bind()方法
+被调用之后， 设置或者改变 ChannelOption 都不会有任何的效果。所支持
+的 ChannelOption 取决于所使用的 Channel 类型。参见正在使用的
+ChannelConfig 的 API 文档
+childOption 指定当子 Channel 被接受时， 应用到子 Channel 的 ChannelConfig 的
+ChannelOption。所支持的 ChannelOption 取决于所使用的 Channel 的类
+型。参见正在使用的 ChannelConfig 的 API 文档
+attr 指定 ServerChannel 上的属性，属性将会通过 bind()方法设置给 Channel。
+在调用 bind()方法之后改变它们将不会有任何的效果
+childAttr 将属性设置给已经被接受的子 Channel。接下来的调用将不会有任何的效果
+handler 设置被添加到ServerChannel 的ChannelPipeline中的ChannelHandler。
+更加常用的方法参见 childHandler()
+childHandler 设置将被添加到已被接受的子 Channel 的 ChannelPipeline 中的 ChannelHandler。 handler()方法和 childHandler()方法之间的区别是：前者所
+添加的 ChannelHandler 由接受子 Channel 的 ServerChannel 处理，而
+childHandler()方法所添加的 ChannelHandler 将由已被接受的子 Channel
+处理，其代表一个绑定到远程节点的套接字
+clone 克隆一个设置和原始的 ServerBootstrap 相同的 ServerBootstrap
+bind 绑定 ServerChannel 并且返回一个 ChannelFuture，其将会在绑定操作完
+成后收到通知（带着成功或者失败的结果）
+# 引导服务器
+存在引导客户端没有的方法 childOption childAttr childHandler。这些调用支持特别用于服务器应用程序的操作。具体来说，ServerChannel的实现负责创建子Channel，这些子Channel代表了被接受的连接。ServerBootstrap提供这些方法，以简化将设置应用到已被接受的子Channel的ChannelConfig任务
+NioEventLoopGroup group = new NioEventLoopGroup();
+ServerBootstrap bootstrap = new ServerBootstrap();
+bootstrap.group(group)
+.channel(NioServerSocketChannel.class)
+.childHandler(new SimpleChannelInboundHandler<ByteBuf>() {
+@Override
+protected void channelRead0(ChannelHandlerContext ctx,
+ByteBuf byteBuf) throws Exception {
+System.out.println("Received data");
+}
+} );
+ChannelFuture future = bootstrap.bind(new InetSocketAddress(8080));
+future.addListener(new ChannelFutureListener() {
+@Override
+public void operationComplete(ChannelFuture channelFuture)
+throws Exception {
+if (channelFuture.isSuccess()) {
+System.out.println("Server bound");
+} else {
+System.err.println("Bound attempt failed");
+channelFuture.cause().printStackTrace();
+}
+}
+} );
+## 从Channel引导客户端
+可以按照引导客户端的方式创建新的Bootstrap实例，但不是最高效的解决方案
+一个更好的解决方案是通过将已被接受的子Channel的EventLoop传递给Bootstrap的group()方法来共享EventLoop，避免上下文切换。
+## 引导过程中添加多个ChannelHandler
+Netty提供了一个特殊的ChannelInboundHandlerAdapter子类。
+public abstract class ChannelInitializer<C extends Channel> extends ChannelInboundHandlerAdapter
+定义了
+protected abstract void initChannel(C ch)
+这个方法提供了一种将多个ChannelHanlder添加到一个ChannelPipeline中的简便方法。向Bootstrap或ServerBoostrap提供ChannelInitializer实现，并且一旦Channel注册到EventLoop中，就会调用initChanne方法。返回后，ChannelInitializer会从ChannelPipeline中移除自己。
+## 使用Netty的ChannelOption和属性
+每个Channel创建时都手动配置相当麻烦。可以使用option方法来将ChannelOption应用到引导，会被自动应用到引导所创建的所有Channel。可用的ChannelOption包括了底层连接的详细信息，如Keep-alive或者超时属性以及缓冲区设置
+bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
+bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000);
+## 引导DatagramChannel
+Bootstrap类也可以被用于无连接状态的协议。提供了DatagramChannel的实现，唯一区别在于不再调用connect方法，而只是调用bind方法
+Bootstrap bootstrap = new Bootstrap();
+bootstrap.group(new OioEventLoopGroup()).channel(
+OioDatagramChannel.class).handler(
+new SimpleChannelInboundHandler<DatagramPacket>(){
+@Override
+public void channelRead0(ChannelHandlerContext ctx,
+DatagramPacket msg) throws Exception {
+// Do something with the packet
+}
+}
+);
+ChannelFuture future = bootstrap.bind(new InetSocketAddress(0));
+future.addListener(new ChannelFutureListener() {
+@Override
+public void operationComplete(ChannelFuture channelFuture)
+throws Exception {
+if (channelFuture.isSuccess()) {
+System.out.println("Channel bound");
+} else {
+System.err.println("Bind attempt failed");
+channelFuture.cause().printStackTrace();
+}
+}
+});
+## 关闭
+引导使应用程序启动并运行，最后一定需要关闭。可以让JVM退出时处理一切，但更好是手动释放资源。
+最重要的是，需要关闭EventLoopGroup，将处理任务挂起的事件和任务，并且随后释放所有活动的线程。
+EventLoopGroup::shutdownGracefully()
+这个方法将会返回一个Future，这个Future将在关闭完成时接受通知。注意shutdownGracefully()方法也是异步的操作，需要阻塞等待直到完成，或者向返回的Future注册一个监听器以便在关闭完后获得通知
+
+### 单元测试
+## EmbeddedChannel概述
+Netty提供了所谓的Embedded传输，用于测试ChannelHandler。这种传输时一种特殊的Channel实现——EmbeddedChannel——的功能。这个实现提供了通过ChannelPipeline传播事件的简单方法。
+将入站数据和出站数据写入EmbeddedChannel中，然后检查是否有东西到达ChannelPipeline的尾端，以此确定消息是否已被编码或者解码过了，以及是否触发了任何的ChannelHandler动作。
+相关方法
+writeInbound(
+Object... msgs)
+将入站消息写到 EmbeddedChannel 中。如果可以通过 readInbound()
+方法从 EmbeddedChannel 中读取数据，则返回 true
+readInbound() 从 EmbeddedChannel 中读取一个入站消息。任何返回的东西都穿越了整
+个 ChannelPipeline。如果没有任何可供读取的， 则返回 null
+writeOutbound(
+Object... msgs)
+将出站消息写到EmbeddedChannel中。如果现在可以通过readOutbound()
+方法从 EmbeddedChannel 中读取到什么东西，则返回 true
+readOutbound() 从 EmbeddedChannel 中读取一个出站消息。任何返回的东西都穿越了整
+个 ChannelPipeline。如果没有任何可供读取的，则返回 null
+finish() 将 EmbeddedChannel 标记为完成，并且如果有可被读取的入站数据或者
+出站数据，则返回 true。这个方法还将会调用 EmbeddedChannel 上的
+close()方法
+## 使用EmbeddedChannel测试ChannelHandler
+# 测试入站消息
+
+
+
+### 编解码器框架
+## 什么是编解码器
+每个网络应用程序都必须定义如何解析在两个节点之间来回传输的原始字节，以及如何将其和目标应用程序的数据格式做相互转换。这种转换逻辑有编解码器处理。
+## 解码器
+1.将字节解码为消息——ByteToMessageDecoder和ReplayingDecoder
+2.将一种消息类型解码为另一种——MessageToMessageDecoder
+负责将入站数据转换到另一种格式，实现了ChannelInboundHandler
+每当需要为ChannelPipeline中的下一个ChannelHandler转换入站数据时使用解码器
+# 抽象类 ByteToMessageDecoder
+将字节解码为消息（或者另一个字节序列）是一项常见的任务，Netty提供了抽象的基类：ByteToMessageDecorder
+两个最重要的方法
+decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)	唯一必须实现的抽象方法，包含入站数据的ByteBuf和添加解码消息的List,这个方法的调用会重复进行，知道确定没有新的元素被添加到该List，或者该ByteBuf中没有更多可读取的字节未知。如果List不为空则传递给ChannelPipeline中的下一个ChannelInboundHandler
+decodeLast(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) Netty提供的这个默认实现只是简单的调用decode()方法，当Channel的状态变为非活动时，这个方法会调用一次，可以重写以提供特殊处理。
+# 抽象类ReplayingDecoder
+扩展了ByteToMessageDecoder类，不必调用readableBytes()方法，通过使用一个自定义的ByteBuf实现（ReplayingDecoderByteBuf），其将在内部调用。
+readXXX()在没有足够的字节读取时将抛出异常，需要在基类中捕获并处理。
+1.并不是所有ByteBuf操作都被支持，调用不支持的方法会抛出异常
+2.ReplayingDecoder稍慢于ByteToMessageDecoder
+如果使用ByteToMessageDecoder不会引入太多的复杂性，请使用，否则使用ReplayingDecoder
+# 抽象类 MessageToMessageDecoder
+decode(ChannelHandlerContext ctx, I msg, List<Object> out) 对于每个需要被解码为另一种格式的入站消息来说，该方法都将会被调用。解码消息随后会被传递给ChannelPipeline中的下一个ChannelInboundHandler
+# TooLongFrameException
+由于Netty是一个异步框架，需要在字节可以解码之前在内存中缓冲它们。因此，不能让解码器缓冲大量的数据以至于耗尽可用内存。为了解除常见顾虑，Netty提供了TooLongFrameException类，其将由解码器在帧超出指定大小限制时抛出。
+为了避免这种情况，可以设置一个最大字节数的阈值，如果超出阈值，则抛出异常。
+## 解码器
+1.将消息编码为字节
+2.将消息编码为消息
+# 抽象类 MessageToByteEncoder
+encode(ChannelHandlerContext ctx, I msg, ByteBuf out) encode()方法是需要实现的唯一抽象方法，调用时将会传入要被该类编码为ByteBuf的出站消息。该ByteBuf随后将会被转发给ChannelPipeline中的下一个ChannelOutboundHandler
+Netty提供了一些专门化的MessageToByteEncoder，可以基于它们实现自己的编码器。可以在io.netty.handler.codec.http.websocketx包中找到WebSocket08FrameEncoder类，这个类是一个很好的例子
+# 抽象类 MessageToMessageEncoder
+encode(ChannelHandlerContext ctx, I msg, List<Object> out) 唯一需要实现的方法，每个通过write方法写入的消息都将会被传递给encode()方法，以编码为一个或者多个出站消息。转发给ChannelPipeline中的下一个ChannelOutboundHandler
+## 抽象的编解码器类
+有时需要在同一个类中管理入站和出站数据的转换，NEtty的抽象编解码器类正好用于这个目的。每个都捆绑一个解码器/编码器对。同时实现了ChannelInboundHandler和ChannelOutboundHandler
+# 抽象类 ByteToMessageCodec
+decode(ChannelHandlerContext ctx, I in, List<Object> list) 只有字节可以被消费，这个方法就会被调用，将入站ByteBuf转换为指定的消息格式，并将其转发给ChannelPipeline中的下一个ChannelInboundHandler
+decodeLast(ChannelHandlerContext ctx, I in, List<Object> list) 默认委托为decode方法，在变为非活跃时调用一次，可以重写以实现特殊处理
+encode(ChannelHandlerContext ctx, I msg, ByteBuf out)  对于每个将被编码并写入出站ByteBuf的消息，这个方法都会被调用
+# 抽象类 MessageToMessageCodec
+decode(ChannelHandlerContext ctx, INBOUND_IN msg, List<Object> out)
+encode(ChannelHandlerContext ctx, OUTBOUND_IN msg, List<Object> out)
+# CombinedChannelDuplexHandler类
+充当ChannelInboundHandler和ChannelOutboundHandler的容器，将编解码器作为参数传入内部
+
+### 预置的ChannelHandler和编解码器
+## 通过SSL/TLS保护Netty应用程序
+Netty通过一个名为SslHandler的ChannelHandler实现利用这个API。SslHandler在内部使用SSLEngine来完成实际工作。
+Netty还提供OpenSSL的SSLEngine实现，可用情况下先用OpenSSL，然后是JDK的
+大多数情况下SslHandler是ChannelPipeline中的第一个ChannelHandler。
+SslHandler的使用方法
+setHandshakeTimeout (long,TimeUnit)
+setHandshakeTimeoutMillis (long)
+getHandshakeTimeoutMillis()
+设置和获取超时时间， 超时之后， 握手
+ChannelFuture 将会被通知失败
+setCloseNotifyTimeout (long,TimeUnit)
+setCloseNotifyTimeoutMillis (long)
+getCloseNotifyTimeoutMillis()
+设置和获取超时时间， 超时之后，将会触
+发一个关闭通知并关闭连接。这也将会导
+致通知该 ChannelFuture 失败
+handshakeFuture() 返回一个在握手完成后将会得到通知的
+ChannelFuture。如果握手先前已经执
+行过了，则返回一个包含了先前的握手结
+果的 ChannelFuture
+close()
+close(ChannelPromise)
+close(ChannelHandlerContext,ChannelPromise)
+发送 close_notify 以请求关闭并销毁
+底层的 SslEngine
+## 构建基于Netty的HTTP/HTTPS应用程序
+# HTTP解码器、编码器和编解码器
+HTTP是基于请求/响应模式的：客户单向服务器发送一个HTTP请求，然后服务器将会返回一个HTTP响应。Netty提供了多种编码器和解码器以简化对这个协议的使用
+if (isClient) {
+	pipeline.addLast("decoder", new HTTPResponseDecoder());
+	pipeline.addLast("encoder", new HTTPRequestEncoder());
+} else {
+	pipeline.addLast("decoder", new HTTPRequestDecoder());
+	pipeline.addLast("encoder", new HTTPResponseEncoder());
+}
+# 聚合HTTP消息
+if (isClient) {
+	pipeline.addLast("codec", new HTTPClientCodec());
+} else {
+	pipeline.addLast("codec", new HTTPServerCodec());
+}
+# HTTP压缩
+建议开启功能尽可能多地减少传输数据的大小。
+if (isClient) {
+	pipeline.addLast("codec", new HTTPClientCodec());
+	pipeline.addLast("decompressor", new HTTPContentCompressor());
+} else {
+	pipeline.addLast("codec", new HTTPServerCodec());
+	pipeline.addLast("compressor", new HTTPContentCompressor());
+}
+# 使用HTTPS
+private final SslContext context;
+SSLEngine engine = context.newEngine(channel.alloc());
+pipe.addFirst("ssl", new SslHandler(engine)；
+if (isClient) {
+	pipeline.addLast("codec", new HTTPClientCodec());
+} else {
+	pipeline.addLast("codec", new HTTPServerCodec());
+}
+# WebSocket
+添加WebSocketChannelHandler到ChannelPipeline中，这个类将处理由WebSocket定义的称为帧的特殊消息类型。WebSocketFrame可以被归类为数据帧或控制帧
+BinaryWebSocketFrame			数据帧：二进制数据
+TextWebSocketFrame				数据帧：文本数据
+ContinuationWebSocketFrame		数据帧：属于上一个BinaryWebSocketFrame或TextWebSocketFrame的文本或二进制数据
+CloseWebSocketFrame				控制帧：一个CLOSE请求、关闭的状态码以及关闭的原因
+PingWebSocketFrame				控制帧：请求一个PongWebSocketFrame
+PongWebSocketFrame				控制帧：对PingWebSocketFrame请求的响应
+channel.pipeline().addLast(
+	new HttpServerCodec(),
+	new HttpObjectAggregator(65536),
+	new WebSocketServerProtocolHandler("/websocket"),
+	new TextFrameHandler(),
+	new BinaryFrameHandler(),
+	new ContinuationFrameHandler()
+);
+保护WebSocket只需要将SslHandler作为第一个ChannelHandler
+
+## 空闲的连接和超时
+检测空闲连接和超时对于及时释放资源至关重要。Netty特地提供了几个ChannelHandler实现
+IdleStateHandler 		当连接空闲时间太长时，将会触发一个IdleStateEvent事件，然后可以通过重写的userEventTriggered()方法来处理该事件
+ReadTimeoutHandler		如果指定时间间隔没有收到任何的入站数据，则抛出ReadTimeoutException并关闭对应的Channel。可以通过重写exceptionCaught方法来检测该异常
+WriteTimeoutHandler		如果指定时间间隔没有任何出站数据写入，则抛出一个WriteTimeoutException并关闭对应的Channel。可以通过重写exceptionCaught方法来检测该异常
+最常用的是IdleStateHandler
+## 解码基于分隔符的协议和基于长度的协议
+# 基于分隔符的协议
+基于分隔符（delimited）的消息协议使用定义的字符来标记的消息或者消息段（通常称为帧）的开头或者结尾。
+DelimitedBasedFrameDecoder			使用任何由用户提供的分隔符来提取帧的通用解码器
+LineBasedFrameDecoder				提取由行尾符（\n或\r\n）分隔的帧的解码器，比DelimitedBasedFrameDecoder更快
+# 基于长度的协议
+将长度编码到帧的头部来定义帧
+FixedLengthFrameDecoder				提取指定长度的帧
+LengthFieldBasedFrameDecoder		根据编码进帧头部中的长度值提取帧，偏移量以及长度在构造函数中指定（有一个指定位数的数字来指定帧的实际长度）
+
+## 写大型数据
+使用FileRegion接口来通过支持零拷贝的文件传输的Channel来发送文件区域
+File file = new File("");
+FileInputStream in = new FileInputStream(file);
+FileRegion region = new DefaultFileRegion(in.getChannel(), 0, file.length());
+channel.writeAndFlush(region).addListener(new ChannelFutureListener() {
+	public void pperationComplete(ChannelFuture future) {
+		// 处理逻辑s
+	}
+});
+需要将数据从文件系统复制到用户内存中时，可以使用ChunkedWriteHandler，支持异步写大型数据流而又不会导致大量的内存消耗
+关键是interfae ChunkedInput<B>，其中类型参数B是readChunk()方法返回的类型。Netty预置了该接口的4个实现。
+ChunkedFile			从文件中逐块获取数据，当平台不支持零拷贝或者需要转换数据使用
+ChunkedNioFile		和ChunkedFile类似，只是使用了FileChannel
+ChunkedStream		从InputStream中逐块传输内容
+ChunkedNioStream	从ReadableByteChannel中逐块传输内容
+
+## 序列化数据
+# JDk序列化
+使用ObjectOutputStream和ObjectInputStream
+CompatibleObjectDecoder② 和使用 JDK 序列化的非基于 Netty 的远程节点进行互操作的解码器
+CompatibleObjectEncoder 和使用 JDK 序列化的非基于 Netty 的远程节点进行互操作的编码器
+ObjectDecoder 构建于 JDK 序列化之上的使用自定义的序列化来解码的解码器；当
+没有其他的外部依赖时，它提供了速度上的改进。否则其他的序列化
+实现更加可取
+ObjectEncoder 构建于 JDK 序列化之上的使用自定义的序列化来编码的编码器；当
+没有其他的外部依赖时，它提供了速度上的改进。否则其他的序列化
+实现更加可取
+# 使用JBoss Marshaling进行序列化
+可以使用外部依赖 则JBoss Marshaling快3倍
+CompatibleMarshallingDecoder
+CompatibleMarshallingEncoder
+与只使用 JDK 序列化的远程节点兼容
+MarshallingDecoder
+MarshallingEncoder
+适用于使用 JBoss Marshalling 的节点。这些类必须一起使用
+# 通过Protocol Buffers序列化
+Protocol Buffers以一种紧凑而高效的方式对结构化的数据进行编码以及解码
+ProtobufDecoder 使用 protobuf 对消息进行解码
+ProtobufEncoder 使用 protobuf 对消息进行编码
+ProtobufVarint32FrameDecoder 根据消息中的 Google Protocol Buffers 的“Base 128 Varints”a
+整型长度字段值动态地分割所接收到的 ByteBuf
+ProtobufVarint32LengthFieldPrepender 向 ByteBuf 前追加一个 Google Protocal Buffers 的“Base
+128 Varints”整型的长度字段值
+
+### WebSocket
+## WebSocket简介
+WebSocket协议是完全重新设计的协议，旨在为Web上的双向数据传输问题提供一个切实可行的解决方案。
+## WebSocket示例
+## 添加WebSocket支持
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
